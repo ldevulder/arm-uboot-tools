@@ -8,6 +8,7 @@ ${SH_FILE} is used to convert official U-Boot generated binary into a usable boo
 Usage: ${SH_FILE} [-c] [-g] [-h] [-s]
 
 Where:
+  -b	name of the board configure (for example: kvim)
   -c	copy the binary blob files in the current directory
   -g	compile the AmLogic U-Boot version to generate the needed binary blob files
   -h	this help page
@@ -19,18 +20,20 @@ EOF
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
 typeset -rx BLOB_FIPDIR=~/git/github/vim-u-boot/fip
-typeset -rx BOARD=kvim
 typeset -rx FIPDIR=~/git/github/u-boot/fip
 typeset -rx U_BOOT_DIR=~/git/github/u-boot
 typeset -l BURN_FILE
 typeset -i BURN=0
 typeset -i COMPILE=0
 typeset -i COPY_FW=0
+typeset BOARD
 typeset DEV
 
 # Get options
-while getopts "cghs" ARG; do
+while getopts "b:cghs" ARG; do
   case ${ARG} in
+    b) BOARD=${OPTARG}
+       ;;
     c) COPY_FW=1
        ;;
     g) COMPILE=1
@@ -44,6 +47,11 @@ while getopts "cghs" ARG; do
   esac
 done
 shift $((OPTIND-1))
+
+# Board model must be filled!
+[[ -z "${BOARD}" ]]                              \
+  && echo -e "Board model must be filled!\n" >&2 \
+  && usage
 
 # Compile Amlogic binary blob files if needed
 if (( COMPILE )); then
