@@ -1,0 +1,152 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+cat >&2 <<EOF
+${SH_FILE} is used to convert official U-Boot generated binary into a usable bootloader for AmLogic s905x SoC
+
+Usage: ${SH_FILE} [-c] [-g] [-h] [-s]
+
+Where:
+  -c	copy the binary blob files in the current directory
+  -g	compile the AmLogic U-Boot version to generate the needed binary blob files
+  -h	this help page
+  -s	"burn" the generated U-Boot file on a sdcard
+EOF
+  exit 1
+}
+
+# Variable(s)
+typeset -r SH_FILE=${0##*/}
+typeset -rx BLOB_FIPDIR=~/git/github/vim-u-boot/fip
+typeset -rx BOARD=kvim
+typeset -rx FIPDIR=~/git/github/u-boot/fip
+typeset -rx U_BOOT_DIR=~/git/github/u-boot
+typeset -l BURN_FILE
+typeset -i BURN=0
+typeset -i COMPILE=0
+typeset -i COPY_FW=0
+typeset DEV
+
+# Get options
+while getopts "cghs" ARG; do
+  case ${ARG} in
+    c) COPY_FW=1
+       ;;
+    g) COMPILE=1
+       ;;
+    s) BURN=1
+       BURN_FILE=u-boot.bin.sd.bin
+       DEV=/dev/mmcblk0
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Compile Amlogic binary blob files if needed
+if (( COMPILE )); then
+  # Export needed variables
+  export ARCH=arm
+  export CROSS_COMPILE=aarch64-none-elf-
+  export PATH=~/cross-compile/aarch64/gcc-linaro-aarch64-none-elf-4.8-2013.11_linux/bin:~/cross-compile/aarch64/gcc-linaro-arm-none-eabi-4.8-2013.11_linux/bin:$PATH
+
+  echo "- Cleaning Amlogic U-Boot build directory..."
+  cd ${BLOB_FIPDIR%/*}
+  make clean && make mrproper && make distclean
+
+  # Configure Amlogic U-Boot
+  echo "- Configure Amlogic U-Boot for ${BOARD} board..."
+  make ${BOARD}_defconfig
+
+  # Compile Amlogic U-Boot
+  echo "- Compiling Amlogic U-Boot..."
+  make || echo "Failed to compile U-Boot!" >@2
+
+  # We need to go back into original directory
+  cd ${OLDPWD}
+fi
+
+# Remove old FIPDIR and re-create it
+echo "- Cleaning/Creating ${FIPDIR} directory..."
+rm -rf ${FIPDIR}
+mkdir -p ${FIPDIR}
+
+# Copy compiled u-boot.bin as BL3-3
+echo "- Copying BL3-3 file..."
+cp ${U_BOOT_DIR}/u-boot.bin ${FIPDIR}/bl33.bin
+
+# Copy needed binary blob files
+echo "- Copying binary blob files..."
+cp ${BLOB_FIPDIR}/gxl/bl2.bin ${FIPDIR}
+cp ${BLOB_FIPDIR}/gxl/acs.bin ${FIPDIR}
+cp ${BLOB_FIPDIR}/gxl/bl21.bin ${FIPDIR}
+cp ${BLOB_FIPDIR}/gxl/bl30.bin ${FIPDIR}
+cp ${BLOB_FIPDIR}/gxl/bl301.bin ${FIPDIR}
+cp ${BLOB_FIPDIR}/gxl/bl31.img ${FIPDIR}
+
+# Create BL3-0
+echo "- Creating BL3-0..."
+${BLOB_FIPDIR}/blx_fix.sh  \
+  ${FIPDIR}/bl30.bin       \
+  ${FIPDIR}/zero_tmp       \
+  ${FIPDIR}/bl30_zero.bin  \
+  ${FIPDIR}/bl301.bin      \
+  ${FIPDIR}/bl301_zero.bin \
+  ${FIPDIR}/bl30_new.bin   \
+  bl30
+
+# Create BL2-ACS file
+echo "- Creating BL2-ACS file..."
+python ${BLOB_FIPDIR}/acs_tool.pyc ${FIPDIR}/bl2.bin ${FIPDIR}/bl2_acs.bin ${FIPDIR}/acs.bin 0
+
+# Create BL2 file
+echo "- Creating BL2 file..."
+${BLOB_FIPDIR}/blx_fix.sh  \
+  ${FIPDIR}/bl2_acs.bin    \
+  ${FIPDIR}/zero_tmp       \
+  ${FIPDIR}/bl2_zero.bin   \
+  ${FIPDIR}/bl21.bin       \
+  ${FIPDIR}/bl21_zero.bin  \
+  ${FIPDIR}/bl2_new.bin    \
+  bl2
+
+# Encode BL files
+echo "- Encoding BL* files..."
+${BLOB_FIPDIR}/gxl/aml_encrypt_gxl --bl3enc --input ${FIPDIR}/bl30_new.bin
+${BLOB_FIPDIR}/gxl/aml_encrypt_gxl --bl3enc --input ${FIPDIR}/bl31.img
+${BLOB_FIPDIR}/gxl/aml_encrypt_gxl --bl3enc --input ${FIPDIR}/bl33.bin
+
+# Sign BL2 file
+echo "- Signing BL2 file..."
+${BLOB_FIPDIR}/gxl/aml_encrypt_gxl --bl2sig --input ${FIPDIR}/bl2_new.bin --output ${FIPDIR}/bl2.n.bin.sig
+
+# Create u-boot.* files
+echo "- Creating final u-boot.bin files..."
+${BLOB_FIPDIR}/gxl/aml_encrypt_gxl  \
+  --bootmk                          \
+  --output ${FIPDIR}/u-boot.bin     \
+  --bl2 ${FIPDIR}/bl2.n.bin.sig     \
+  --bl30 ${FIPDIR}/bl30_new.bin.enc \
+  --bl31 ${FIPDIR}/bl31.img.enc     \
+  --bl33 ${FIPDIR}/bl33.bin.enc
+
+# Copy U-Boot files in the current directory
+if (( COPY_FW )); then
+  for FILE in ${FIPDIR}/bl33.bin ${FIPDIR}/u-boot.*; do
+    echo -n "- Copy firmware file ${FILE##*/}... "
+    cp ${FILE} ${PWD} >/dev/null 2>&1 && echo "OK!" || echo "KO :-("
+  done
+fi
+
+# Write U-Boot to sd-card
+if (( BURN )); then
+  echo "- Burning ${BURN_FILE}... "
+  dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 skip=1 seek=1
+  dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=1 count=444
+  sync
+fi
+
+# Clean exit
+exit 0
