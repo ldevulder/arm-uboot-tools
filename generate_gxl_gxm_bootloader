@@ -1,0 +1,191 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+cat >&2 <<EOF
+${SH_FILE} is used to convert official U-Boot generated binary into a usable bootloader for Amlogic GXL/GXM SoC
+
+Usage: ${SH_FILE} -b board [-c] [-h] [-o] [-s] [-u dir]
+
+Where:
+  -b	name of the board configure (for example: kvim)
+  -c	copy the binary blob files in the current directory
+  -h	this help page
+  -o    don't copy the bl33.bin from official U-Boot
+  -s	"burn" the generated U-Boot file on a sdcard
+  -u	U-Boot Amlogic version source directory
+EOF
+  exit 0
+}
+
+# Error function
+function error() {
+  echo -e "$@" >&2
+  exit 1
+}
+
+# Copy/Check function
+function copy() {
+  typeset -r FILE=$1
+  typeset -r DEST=$2
+
+  cp ${FILE} ${DEST} >/dev/null 2>&1 \
+    || error "Error while copying file ${FILE} to ${DEST}!"
+}
+
+# Variable(s)
+typeset -r SH_FILE=${0##*/}
+typeset -r U_BOOT_DIR=/dev/shm/u-boot-tmp
+typeset -r TMPFS=/dev/shm/u-boot-amlogic-tmp
+typeset -r FIPDIR=${U_BOOT_DIR}/fip
+typeset -r BLOB_FIPDIR=${TMPFS}/fip
+typeset -r AML_ENCRYPT_BIN=${TMPFS}/fip/gxl/aml_encrypt_gxl
+typeset -i BURN=0
+typeset -i COPY_AMLOGIC_BL33=1
+typeset -l BURN_FILE
+typeset AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic
+typeset BOARD
+typeset DEV
+
+# Get options
+while getopts "b:chosu:" ARG; do
+  case ${ARG} in
+    b) BOARD=${OPTARG}
+       ;;
+    c) COPY_FW=1
+       ;;
+    o) COPY_AMLOGIC_BL33=0
+       ;;
+    s) BURN=1
+       BURN_FILE=u-boot.bin.sd.bin
+       DEV=/dev/mmcblk0
+       ;;
+    u) AMLOGIC_U_BOOT_DIR=${OPTARG}
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Board model must be filled!
+[[ -z "${BOARD}" ]] \
+  && error "Board model must be filled!"
+
+# Export needed variables
+export ARCH=arm
+export CROSS_COMPILE=aarch64-none-elf-
+export PATH=~/cross-compile/aarch64/gcc-linaro-aarch64-none-elf-4.8-2013.11_linux/bin:~/cross-compile/aarch64/gcc-linaro-arm-none-eabi-4.8-2013.11_linux/bin:$PATH
+
+# Remove old TMPFS and re-create it
+echo "- Cleaning/Creating ${TMPFS} directory..."
+rm -rf ${TMPFS} \
+  || error "Cannot clean temporary directory ${TMPFS}!"
+mkdir -p ${TMPFS} \
+  || error "Cannot create temporary directory ${TMPFS}!"
+
+# Copy u-boot source in the tmpfs directory
+rsync -rq --exclude=.git ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
+  || error "Cannot copy ${AMLOGIC_U_BOOT_DIR}/* in ${TMPFS}!"
+
+echo "- Cleaning/Creating Amlogic U-Boot build directory..."
+cd ${TMPFS}
+make clean && make mrproper && make distclean
+
+# Configure Amlogic U-Boot
+echo "- Configure Amlogic U-Boot for ${BOARD} board..."
+make ${BOARD}_defconfig
+
+# Compile Amlogic U-Boot
+echo "- Compiling Amlogic U-Boot..."
+make || error "Failed to compile Amlogic U-Boot!"
+
+# We need to go back into original directory
+cd ${OLDPWD}
+
+# Remove old FIPDIR and re-create it
+echo "- Cleaning/Creating ${FIPDIR} directory..."
+rm -rf ${FIPDIR} \
+  || error "Cannot clean FIP directory ${FIPDIR}!"
+mkdir -p ${FIPDIR} \
+  || error "Cannot create FIP directory ${FIPDIR}!"
+
+# Copy compiled u-boot.bin as BL3-3
+echo "- Copying BL3-3 file..."
+(( COPY_AMLOGIC_BL33 ))                               \
+  && copy ${U_BOOT_DIR}/u-boot.bin ${FIPDIR}/bl33.bin \
+  || copy ${BLOB_FIPDIR}/gxl/bl33.bin ${FIPDIR}/bl33.bin
+
+# Copy needed binary blob files
+echo "- Copying binary blob files..."
+copy ${BLOB_FIPDIR}/gxl/bl2.bin ${FIPDIR}
+copy ${BLOB_FIPDIR}/gxl/acs.bin ${FIPDIR}
+copy ${BLOB_FIPDIR}/gxl/bl21.bin ${FIPDIR}
+copy ${BLOB_FIPDIR}/gxl/bl30.bin ${FIPDIR}
+copy ${BLOB_FIPDIR}/gxl/bl301.bin ${FIPDIR}
+copy ${BLOB_FIPDIR}/gxl/bl31.img ${FIPDIR}
+
+# Create BL3-0
+echo "- Creating BL3-0..."
+${BLOB_FIPDIR}/blx_fix.sh  \
+  ${FIPDIR}/bl30.bin       \
+  ${FIPDIR}/zero_tmp       \
+  ${FIPDIR}/bl30_zero.bin  \
+  ${FIPDIR}/bl301.bin      \
+  ${FIPDIR}/bl301_zero.bin \
+  ${FIPDIR}/bl30_new.bin   \
+  bl30
+
+# Create BL2-ACS file
+echo "- Creating BL2-ACS file..."
+python ${BLOB_FIPDIR}/acs_tool.pyc ${FIPDIR}/bl2.bin ${FIPDIR}/bl2_acs.bin ${FIPDIR}/acs.bin 0
+
+# Create BL2 file
+echo "- Creating BL2 file..."
+${BLOB_FIPDIR}/blx_fix.sh  \
+  ${FIPDIR}/bl2_acs.bin    \
+  ${FIPDIR}/zero_tmp       \
+  ${FIPDIR}/bl2_zero.bin   \
+  ${FIPDIR}/bl21.bin       \
+  ${FIPDIR}/bl21_zero.bin  \
+  ${FIPDIR}/bl2_new.bin    \
+  bl2
+
+# Encode BL files
+echo "- Encoding BL* files..."
+${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl30_new.bin
+${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.img
+${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl33.bin
+
+# Sign BL2 file
+echo "- Signing BL2 file..."
+${AML_ENCRYPT_BIN} --bl2sig --input ${FIPDIR}/bl2_new.bin --output ${FIPDIR}/bl2.n.bin.sig
+
+# Create u-boot.* files
+echo "- Creating final u-boot.bin files..."
+${AML_ENCRYPT_BIN}                  \
+  --bootmk                          \
+  --output ${FIPDIR}/u-boot.bin     \
+  --bl2 ${FIPDIR}/bl2.n.bin.sig     \
+  --bl30 ${FIPDIR}/bl30_new.bin.enc \
+  --bl31 ${FIPDIR}/bl31.img.enc     \
+  --bl33 ${FIPDIR}/bl33.bin.enc
+
+# Copy U-Boot files in the current directory
+if (( COPY_FW )); then
+  for FILE in ${FIPDIR}/bl33.bin ${FIPDIR}/u-boot.*; do
+    echo "- Copy firmware file ${FILE##*/}..."
+    copy ${FILE} ${PWD}
+  done
+fi
+
+# Write U-Boot to sd-card
+if (( BURN )); then
+  echo "- Burning ${BURN_FILE}... "
+  dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 skip=1 seek=1
+  dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=1 count=444
+  sync
+fi
+
+# Clean exit
+exit 0
