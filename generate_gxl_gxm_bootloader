@@ -85,7 +85,7 @@ mkdir -p ${TMPFS} \
   || error "Cannot create temporary directory ${TMPFS}!"
 
 # Copy u-boot source in the tmpfs directory
-rsync -rq --exclude=.git ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
+rsync -rq ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${AMLOGIC_U_BOOT_DIR}/* in ${TMPFS}!"
 
 echo "- Cleaning/Creating Amlogic U-Boot build directory..."

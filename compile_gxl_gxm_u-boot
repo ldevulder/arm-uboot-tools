@@ -55,7 +55,7 @@ mkdir -p ${TMPFS} \
   || error "Cannot create temporary directory ${TMPFS}!"
 
 # Copy u-boot source in the tmpfs directory
-rsync -rq --exclude=.git ${U_BOOT_DIR}/ ${TMPFS} \
+rsync -rq ${U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${U_BOOT_DIR}/* in ${TMPFS}!"
 
 # Cleanup U-Boot build
