@@ -25,6 +25,7 @@ function error() {
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
 typeset -i ATF_FW=0
+typeset GENERATE_OPTS="-c -s"
 typeset AMLOGIC_U_BOOT_DIR
 typeset AMLOGIC_U_BOOT_BOARD
 typeset ATF_FW_BOARD
@@ -66,10 +67,13 @@ case ${BOARD} in
 esac
 
 # Compile official ARM Trusted Firmware if needed
-(( ATF_FW )) && compile_mainline_atf -b ${ATF_FW_BOARD}
+if (( ATF_FW )); then
+  GENERATE_OPTS+=" -a"
+  compile_mainline_atf -b ${ATF_FW_BOARD}
+fi
 
 # Compile official U-Boot for Amlogic based board and burn it on /dev/mmcblk0
 compile_mainline_u-boot -b ${BOARD} \
-  && generate_gxl_gxm_bootloader -u ${AMLOGIC_U_BOOT_DIR} -b ${AMLOGIC_U_BOOT_BOARD} -c -s
+  && generate_gxl_gxm_bootloader -u ${AMLOGIC_U_BOOT_DIR} -b ${AMLOGIC_U_BOOT_BOARD} ${GENERATE_OPTS}
 
 exit $?
