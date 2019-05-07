@@ -11,6 +11,7 @@ Where:
   -a    use official ARM ATF fimrware
   -b	name of the board to configure (for example: kvim)
   -c	copy the binary blob files in the current directory
+  -g    use gxlimg to generate image instead of aml_encrypt_gxl
   -h	this help page
   -o    don't copy the bl33.bin from official U-Boot
   -s	"burn" the generated U-Boot file on a sdcard
@@ -41,17 +42,19 @@ typeset -r TMPFS=/dev/shm/u-boot-amlogic-tmp
 typeset -r FIPDIR=${U_BOOT_DIR}/fip
 typeset -r BLOB_FIPDIR=${TMPFS}/fip
 typeset -r AML_ENCRYPT_BIN=${TMPFS}/fip/gxl/aml_encrypt_gxl
+typeset -r GXLIMG_BIN=gxlimg
 typeset -i ATF_FW=0
 typeset -i BURN=0
 typeset -i COPY_UBOOT_BL33=1
 typeset -i COPY_FW=0
-typeset -l BURN_FILE
+typeset -i USE_GXLIMG=0
+typeset -l BURN_FILE=u-boot.bin.sd.bin
 typeset AMLOGIC_U_BOOT_DIR
 typeset BOARD
 typeset DEV
 
 # Get options
-while getopts "ab:chosu:" ARG; do
+while getopts "ab:cghosu:" ARG; do
   case ${ARG} in
     a) ATF_FW=1
        ;;
@@ -59,10 +62,12 @@ while getopts "ab:chosu:" ARG; do
        ;;
     c) COPY_FW=1
        ;;
+    g) USE_GXLIMG=1
+       BURN_FILE=u-boot.bin
+       ;;
     o) COPY_UBOOT_BL33=0
        ;;
     s) BURN=1
-       BURN_FILE=u-boot.bin.sd.bin
        DEV=/dev/mmcblk0
        ;;
     u) AMLOGIC_U_BOOT_DIR=${OPTARG}
@@ -80,6 +85,11 @@ shift $((OPTIND-1))
 # Amlogic U-Boot directory must be filled!
 [[ -z "${AMLOGIC_U_BOOT_DIR}" ]] \
   && error "Amlogic U-Boot directory must be filled!"
+
+# Informative message
+(( USE_GXLIMG ))            \
+  && echo "- Using gxlimg!" \
+  || echo "- Using aml_encrypt_gxl :-("
 
 # Export needed variables
 export ARCH=arm
@@ -146,7 +156,7 @@ fi
 echo "- Creating BL3-0..."
 ${BLOB_FIPDIR}/blx_fix.sh  \
   ${FIPDIR}/bl30.bin       \
-  ${FIPDIR}/zero_tmp       \
+  zero_tmp                 \
   ${FIPDIR}/bl30_zero.bin  \
   ${FIPDIR}/bl301.bin      \
   ${FIPDIR}/bl301_zero.bin \
@@ -161,7 +171,7 @@ python ${BLOB_FIPDIR}/acs_tool.pyc ${FIPDIR}/bl2.bin ${FIPDIR}/bl2_acs.bin ${FIP
 echo "- Creating BL2 file..."
 ${BLOB_FIPDIR}/blx_fix.sh  \
   ${FIPDIR}/bl2_acs.bin    \
-  ${FIPDIR}/zero_tmp       \
+  zero_tmp                 \
   ${FIPDIR}/bl2_zero.bin   \
   ${FIPDIR}/bl21.bin       \
   ${FIPDIR}/bl21_zero.bin  \
@@ -169,24 +179,37 @@ ${BLOB_FIPDIR}/blx_fix.sh  \
   bl2
 
 # Encode BL files
-echo "- Encoding BL* files..."
-${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl30_new.bin
-${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.bin
-${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl33.bin
-
-# Sign BL2 file
-echo "- Signing BL2 file..."
-${AML_ENCRYPT_BIN} --bl2sig --input ${FIPDIR}/bl2_new.bin --output ${FIPDIR}/bl2.n.bin.sig
+echo "- Encrypting BL* files..."
+if (( USE_GXLIMG )); then
+  ${GXLIMG_BIN} -t bl2 -c ${FIPDIR}/bl2_new.bin ${FIPDIR}/bl2.bin.enc
+  ${GXLIMG_BIN} -t bl3 -c ${FIPDIR}/bl30_new.bin ${FIPDIR}/bl30.bin.enc
+  ${GXLIMG_BIN} -t bl3 -c ${FIPDIR}/bl31.bin ${FIPDIR}/bl31.bin.enc
+  ${GXLIMG_BIN} -t bl3 -c ${FIPDIR}/bl33.bin ${FIPDIR}/bl33.bin.enc
+else
+  ${AML_ENCRYPT_BIN} --bl2sig --input ${FIPDIR}/bl2_new.bin --output ${FIPDIR}/bl2.n.bin.sig
+  ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl30_new.bin
+  ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.bin
+  ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl33.bin
+fi
 
 # Create u-boot.* files
 echo "- Creating final u-boot.bin files..."
-${AML_ENCRYPT_BIN}                  \
-  --bootmk                          \
-  --output ${FIPDIR}/u-boot.bin     \
-  --bl2 ${FIPDIR}/bl2.n.bin.sig     \
-  --bl30 ${FIPDIR}/bl30_new.bin.enc \
-  --bl31 ${FIPDIR}/bl31.bin.enc     \
-  --bl33 ${FIPDIR}/bl33.bin.enc
+if (( USE_GXLIMG )); then
+  ${GXLIMG_BIN} -t fip            \
+    --bl2 ${FIPDIR}/bl2.bin.enc   \
+    --bl30 ${FIPDIR}/bl30.bin.enc \
+    --bl31 ${FIPDIR}/bl31.bin.enc \
+    --bl33 ${FIPDIR}/bl33.bin.enc \
+    ${FIPDIR}/u-boot.bin
+else
+  ${AML_ENCRYPT_BIN}                  \
+    --bootmk                          \
+    --output ${FIPDIR}/u-boot.bin     \
+    --bl2 ${FIPDIR}/bl2.n.bin.sig     \
+    --bl30 ${FIPDIR}/bl30_new.bin.enc \
+    --bl31 ${FIPDIR}/bl31.bin.enc     \
+    --bl33 ${FIPDIR}/bl33.bin.enc
+fi
 
 # Copy U-Boot files in the current directory
 if (( COPY_FW )); then
@@ -199,8 +222,13 @@ fi
 # Write U-Boot to sd-card
 if (( BURN )); then
   echo "- Burning ${BURN_FILE}..."
-  dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 skip=1 seek=1
-  dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=1 count=444
+  if (( USE_GXLIMG )); then
+    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 seek=1
+    dd if=/dev/zero of=${DEV} conv=fsync,notrunc bs=1 count=444
+  else
+    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 skip=1 seek=1
+    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=1 count=444
+  fi
   sync
 fi
 

@@ -25,6 +25,7 @@ function error() {
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
 typeset -i ATF_FW=0
+typeset -i USE_GXLIMG=0
 typeset GENERATE_OPTS="-c -s"
 typeset AMLOGIC_U_BOOT_DIR
 typeset AMLOGIC_U_BOOT_BOARD
@@ -32,11 +33,13 @@ typeset ATF_FW_BOARD
 typeset BOARD
 
 # Get options
-while getopts "ab:h" ARG; do
+while getopts "ab:gh" ARG; do
   case ${ARG} in
     a) ATF_FW=1
        ;;
     b) BOARD=${OPTARG}
+       ;;
+    g) USE_GXLIMG=1
        ;;
     h|*) usage
        ;;
@@ -71,6 +74,9 @@ if (( ATF_FW )); then
   GENERATE_OPTS+=" -a"
   compile_mainline_atf -b ${ATF_FW_BOARD}
 fi
+
+# Use GXLIMG?
+(( USE_GXLIMG )) && GENERATE_OPTS+=" -g"
 
 # Compile official U-Boot for Amlogic based board and burn it on /dev/mmcblk0
 compile_mainline_u-boot -b ${BOARD} \
