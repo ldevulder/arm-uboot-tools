@@ -5,10 +5,11 @@ function usage() {
 cat >&2 <<EOF
 ${SH_FILE} is used to convert official U-Boot generated binary into a usable bootloader for Amlogic GXL/GXM SoC
 
-Usage: ${SH_FILE} -b board [-c] [-h] [-o] [-s] [-u dir]
+Usage: ${SH_FILE} [a-] -b board [-c] [-h] [-o] [-s] -u dir
 
 Where:
-  -b	name of the board configure (for example: kvim)
+  -a    use official ARM ATF fimrware
+  -b	name of the board to configure (for example: kvim)
   -c	copy the binary blob files in the current directory
   -h	this help page
   -o    don't copy the bl33.bin from official U-Boot
@@ -40,21 +41,25 @@ typeset -r TMPFS=/dev/shm/u-boot-amlogic-tmp
 typeset -r FIPDIR=${U_BOOT_DIR}/fip
 typeset -r BLOB_FIPDIR=${TMPFS}/fip
 typeset -r AML_ENCRYPT_BIN=${TMPFS}/fip/gxl/aml_encrypt_gxl
+typeset -i ATF_FW=0
 typeset -i BURN=0
-typeset -i COPY_AMLOGIC_BL33=1
+typeset -i COPY_UBOOT_BL33=1
+typeset -i COPY_FW=0
 typeset -l BURN_FILE
-typeset AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic
+typeset AMLOGIC_U_BOOT_DIR
 typeset BOARD
 typeset DEV
 
 # Get options
-while getopts "b:chosu:" ARG; do
+while getopts "ab:chosu:" ARG; do
   case ${ARG} in
+    a) ATF_FW=1
+       ;;
     b) BOARD=${OPTARG}
        ;;
     c) COPY_FW=1
        ;;
-    o) COPY_AMLOGIC_BL33=0
+    o) COPY_UBOOT_BL33=0
        ;;
     s) BURN=1
        BURN_FILE=u-boot.bin.sd.bin
@@ -72,6 +77,10 @@ shift $((OPTIND-1))
 [[ -z "${BOARD}" ]] \
   && error "Board model must be filled!"
 
+# Amlogic U-Boot directory must be filled!
+[[ -z "${AMLOGIC_U_BOOT_DIR}" ]] \
+  && error "Amlogic U-Boot directory must be filled!"
+
 # Export needed variables
 export ARCH=arm
 export CROSS_COMPILE=aarch64-none-elf-
@@ -85,6 +94,7 @@ mkdir -p ${TMPFS} \
   || error "Cannot create temporary directory ${TMPFS}!"
 
 # Copy u-boot source in the tmpfs directory
+#rsync -rq --exclude=.git ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
 rsync -rq ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${AMLOGIC_U_BOOT_DIR}/* in ${TMPFS}!"
 
@@ -112,7 +122,7 @@ mkdir -p ${FIPDIR} \
 
 # Copy compiled u-boot.bin as BL3-3
 echo "- Copying BL3-3 file..."
-(( COPY_AMLOGIC_BL33 ))                               \
+(( COPY_UBOOT_BL33 ))                                 \
   && copy ${U_BOOT_DIR}/u-boot.bin ${FIPDIR}/bl33.bin \
   || copy ${BLOB_FIPDIR}/gxl/bl33.bin ${FIPDIR}/bl33.bin
 
@@ -123,7 +133,14 @@ copy ${BLOB_FIPDIR}/gxl/acs.bin ${FIPDIR}
 copy ${BLOB_FIPDIR}/gxl/bl21.bin ${FIPDIR}
 copy ${BLOB_FIPDIR}/gxl/bl30.bin ${FIPDIR}
 copy ${BLOB_FIPDIR}/gxl/bl301.bin ${FIPDIR}
-copy ${BLOB_FIPDIR}/gxl/bl31.img ${FIPDIR}
+if (( ATF_FW )); then
+  echo "- Using ATF BL31..."
+  copy atf-bl31.bin ${FIPDIR}/bl31.bin \
+    || error "Error while copying ATF firmware!"
+else
+  echo "- Using Amlogic BL31..."
+  copy ${BLOB_FIPDIR}/gxl/bl31.bin ${FIPDIR}
+fi
 
 # Create BL3-0
 echo "- Creating BL3-0..."
@@ -154,7 +171,7 @@ ${BLOB_FIPDIR}/blx_fix.sh  \
 # Encode BL files
 echo "- Encoding BL* files..."
 ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl30_new.bin
-${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.img
+${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.bin
 ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl33.bin
 
 # Sign BL2 file
@@ -168,7 +185,7 @@ ${AML_ENCRYPT_BIN}                  \
   --output ${FIPDIR}/u-boot.bin     \
   --bl2 ${FIPDIR}/bl2.n.bin.sig     \
   --bl30 ${FIPDIR}/bl30_new.bin.enc \
-  --bl31 ${FIPDIR}/bl31.img.enc     \
+  --bl31 ${FIPDIR}/bl31.bin.enc     \
   --bl33 ${FIPDIR}/bl33.bin.enc
 
 # Copy U-Boot files in the current directory
@@ -181,7 +198,7 @@ fi
 
 # Write U-Boot to sd-card
 if (( BURN )); then
-  echo "- Burning ${BURN_FILE}... "
+  echo "- Burning ${BURN_FILE}..."
   dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 skip=1 seek=1
   dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=1 count=444
   sync

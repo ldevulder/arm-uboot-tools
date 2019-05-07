@@ -1,0 +1,78 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+cat >&2 <<EOF
+${SH_FILE} is used to compile official U-Boot binary for Rockchip SoC based board
+
+Usage: ${SH_FILE} -b board [-h] [-u dir]
+
+Where:
+  -b	name of the board to configure (for example: roc-rk3328-cc) 
+  -h    this help page
+  -u	U-Boot source directory
+EOF
+  exit 0
+}
+
+# Error function
+function error() {
+  echo -e "$@" >&2
+  exit 1
+}
+
+# Variable(s)
+typeset -r SH_FILE=${0##*/}
+typeset -r TMPFS=/dev/shm/u-boot-tmp
+typeset -rx ARCH=arm
+typeset -rx CROSS_COMPILE=aarch64-elf-
+typeset -x U_BOOT_DIR=~/git/github/u-boot
+typeset -x PATH=~/cross-compile/aarch64/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-elf/bin:$PATH
+typeset BOARD
+
+# Get options
+while getopts "b:hu:" ARG; do
+  case ${ARG} in
+    b) BOARD=${OPTARG}
+       ;;
+    u) U_BOOT_DIR=${OPTARG}
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Board model must be filled!
+[[ -z "${BOARD}" ]] \
+  && error "Board model must be filled!\n"
+
+# Remove old TMPFS and re-create it
+echo "- Cleaning/Creating ${TMPFS} directory..."
+rm -rf ${TMPFS} \
+  || error "Cannot clean temporary directory ${TMPFS}!"
+mkdir -p ${TMPFS} \
+  || error "Cannot create temporary directory ${TMPFS}!"
+
+# Copy u-boot source in the tmpfs directory
+rsync -rq ${U_BOOT_DIR}/ ${TMPFS} \
+  || error "Cannot copy ${U_BOOT_DIR}/* in ${TMPFS}!"
+
+# Cleanup U-Boot build
+echo "- Cleaning U-Boot build directory..."
+cd ${TMPFS}
+make clean && make mrproper && make distclean
+
+# Configure U-Boot
+echo "- Configure U-Boot for ${BOARD} board..."
+make ${BOARD}_defconfig
+
+# Compile U-Boot
+echo "- Compiling U-Boot..."
+make || error "Failed to compile U-Boot!"
+
+# We need to go back into original directory
+cd ${OLDPWD}
+
+# Clean exit
+exit 0

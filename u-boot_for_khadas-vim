@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# Compile official U-Boot for Khadas VIM board and burn it on /dev/mmcblk0
-compile_gxl_gxm_u-boot -b khadas-vim \
-  && generate_gxl_gxm_bootloader -b kvim -c -s
-
-exit $?

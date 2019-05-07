@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# Compile official U-Boot for LibreTech-CC board and burn it on /dev/mmcblk0
-compile_gxl_gxm_u-boot -b libretech-cc \
-  && generate_gxl_gxm_bootloader -u ~/git/github/u-boot-amlogic-libretech-cc -b libretech_cc -c -s
-
-exit $?
