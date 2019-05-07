@@ -49,17 +49,17 @@ shift $((OPTIND-1))
 
 case ${BOARD} in
   khadas-vim)
-    AMLOGIC_U_BOOT_DIR="~/git/github/u-boot-amlogic"
+    AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic
     AMLOGIC_U_BOOT_BOARD="kvim"
     ATF_FW_BOARD="gxl"
     ;;
   khadas-vim2)
-    AMLOGIC_U_BOOT_DIR="~/git/github/u-boot-amlogic"
+    AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic
     AMLOGIC_U_BOOT_BOARD="kvim2"
     ATF_FW_BOARD="gxm"
     ;;
   libretech-cc)
-    AMLOGIC_U_BOOT_DIR="~/git/github/u-boot-amlogic-libretech-cc"
+    AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic-libretech-cc
     AMLOGIC_U_BOOT_BOARD="libretech_cc"
     ATF_FW_BOARD="gxl"
     ;;
