@@ -102,13 +102,16 @@ echo "- Cleaning/Creating Amlogic U-Boot build directory..."
 cd ${TMPFS}
 make clean && make mrproper && make distclean
 
-# Configure Amlogic U-Boot
-echo "- Configure Amlogic U-Boot for ${BOARD} board..."
-make ${BOARD}_defconfig
+# Only if official ATF firmware is not used
+if ! (( ATF_FW )); then
+  # Configure Amlogic U-Boot
+  echo "- Configure Amlogic U-Boot for ${BOARD} board..."
+  make ${BOARD}_defconfig
 
-# Compile Amlogic U-Boot
-echo "- Compiling Amlogic U-Boot..."
-make || error "Failed to compile Amlogic U-Boot!"
+  # Compile Amlogic U-Boot
+  echo "- Compiling Amlogic U-Boot..."
+  make || error "Failed to compile Amlogic U-Boot!"
+fi
 
 # We need to go back into original directory
 cd ${OLDPWD}
