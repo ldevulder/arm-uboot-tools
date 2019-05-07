@@ -57,7 +57,7 @@ case ${BOARD} in
   khadas-vim2)
     AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic
     AMLOGIC_U_BOOT_BOARD="kvim2"
-    ATF_FW_BOARD="gxm"
+    ATF_FW_BOARD="gxl"
     ;;
   libretech-cc)
     AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic-libretech-cc
