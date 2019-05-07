@@ -11,7 +11,7 @@ Where:
   -a    use official ARM ATF fimrware
   -b    name of the board to configure
 
-Currently supported Amlogic boards are: kvim, kvim2, libretech
+Currently supported Amlogic boards are: khadas-vim, khadas-vim2, libretech-cc
 EOF
   exit 0
 }
