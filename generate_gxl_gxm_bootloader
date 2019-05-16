@@ -5,7 +5,7 @@ function usage() {
 cat >&2 <<EOF
 ${SH_FILE} is used to convert official U-Boot generated binary into a usable bootloader for Amlogic GXL/GXM SoC
 
-Usage: ${SH_FILE} [a-] -b board [-c] [-h] [-o] [-s] -u dir
+Usage: ${SH_FILE} [a-] -b board [-c] [-h] [-n] [-o] [-s] -u dir
 
 Where:
   -a    use official ARM ATF fimrware
@@ -13,9 +13,10 @@ Where:
   -c	copy the binary blob files in the current directory
   -g    use gxlimg to generate image instead of aml_encrypt_gxl
   -h	this help page
+  -n    don't compile Amlogic U-Boot (use pre-compiled binary blob)
   -o    don't copy the bl33.bin from official U-Boot
   -s	"burn" the generated U-Boot file on a sdcard
-  -u	U-Boot Amlogic version source directory
+  -u	U-Boot Amlogic version source directory / pre-compiled binary blob directory
 EOF
   exit 0
 }
@@ -48,13 +49,14 @@ typeset -i BURN=0
 typeset -i COPY_UBOOT_BL33=1
 typeset -i COPY_FW=0
 typeset -i USE_GXLIMG=0
+typeset -i COMPILE_AMLOGIC=1
 typeset -l BURN_FILE=u-boot.bin.sd.bin
 typeset AMLOGIC_U_BOOT_DIR
 typeset BOARD
 typeset DEV
 
 # Get options
-while getopts "ab:cghosu:" ARG; do
+while getopts "ab:cghnosu:" ARG; do
   case ${ARG} in
     a) ATF_FW=1
        ;;
@@ -64,6 +66,8 @@ while getopts "ab:cghosu:" ARG; do
        ;;
     g) USE_GXLIMG=1
        BURN_FILE=u-boot.bin
+       ;;
+    n) COMPILE_AMLOGIC=0
        ;;
     o) COPY_UBOOT_BL33=0
        ;;
@@ -109,20 +113,22 @@ mkdir -p ${TMPFS} \
 rsync -rq ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${AMLOGIC_U_BOOT_DIR}/* in ${TMPFS}!"
 
-echo "- Cleaning/Creating Amlogic U-Boot build directory..."
-cd ${TMPFS}
-make clean && make mrproper && make distclean
+if (( COMPILE_AMLOGIC )); then
+  echo "- Cleaning/Creating Amlogic U-Boot build directory..."
+  cd ${TMPFS}
+  make clean && make mrproper && make distclean
 
-# Configure Amlogic U-Boot
-echo "- Configure Amlogic U-Boot for ${BOARD} board..."
-make ${BOARD}_defconfig
+  # Configure Amlogic U-Boot
+  echo "- Configure Amlogic U-Boot for ${BOARD} board..."
+  make ${BOARD}_defconfig
 
-# Compile Amlogic U-Boot
-echo "- Compiling Amlogic U-Boot..."
-make || error "Failed to compile Amlogic U-Boot!"
+  # Compile Amlogic U-Boot
+  echo "- Compiling Amlogic U-Boot..."
+  make || error "Failed to compile Amlogic U-Boot!"
 
-# We need to go back into original directory
-cd ${OLDPWD}
+  # We need to go back into original directory
+  cd ${OLDPWD}
+fi
 
 # Remove old FIPDIR and re-create it
 echo "- Cleaning/Creating ${FIPDIR} directory..."

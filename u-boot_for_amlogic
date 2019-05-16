@@ -5,11 +5,13 @@ function usage() {
 cat >&2 <<EOF
 ${SH_FILE} is used to compile, generate and burn official U-Boot for Amlogic GXL/GXM SoC
 
-Usage: ${SH_FILE} [a-] -b board
+Usage: ${SH_FILE} [a-] -b board [-g] [-n]
 
 Where:
   -a    use official ARM ATF fimrware
   -b    name of the board to configure
+  -g    use gxlimg to generate image instead of aml_encrypt_gxl
+  -n    don't compile Amlogic U-Boot (use pre-compiled binary blob)
 
 Currently supported Amlogic boards are: khadas-vim, khadas-vim2, libretech-cc
 EOF
@@ -26,6 +28,7 @@ function error() {
 typeset -r SH_FILE=${0##*/}
 typeset -i ATF_FW=0
 typeset -i USE_GXLIMG=0
+typeset -i COMPILE_AMLOGIC=1
 typeset GENERATE_OPTS="-c -s"
 typeset AMLOGIC_U_BOOT_DIR
 typeset AMLOGIC_U_BOOT_BOARD
@@ -33,13 +36,18 @@ typeset ATF_FW_BOARD
 typeset BOARD
 
 # Get options
-while getopts "ab:gh" ARG; do
+while getopts "ab:ghn" ARG; do
   case ${ARG} in
     a) ATF_FW=1
+       GENERATE_OPTS+=" -a"
        ;;
     b) BOARD=${OPTARG}
        ;;
     g) USE_GXLIMG=1
+       GENERATE_OPTS+=" -g"
+       ;;
+    n) COMPILE_AMLOGIC=0
+       GENERATE_OPTS+=" -n"
        ;;
     h|*) usage
        ;;
@@ -53,30 +61,30 @@ shift $((OPTIND-1))
 
 case ${BOARD} in
   khadas-vim)
-    AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic
+    (( COMPILE_AMLOGIC ))                               \
+      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic \
+      || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/vim1
     AMLOGIC_U_BOOT_BOARD="kvim"
     ATF_FW_BOARD="gxl"
     ;;
   khadas-vim2)
-    AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic
+    (( COMPILE_AMLOGIC ))                               \
+      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic \
+      || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/vim2
     AMLOGIC_U_BOOT_BOARD="kvim2"
-    ATF_FW_BOARD="gxl"
+    ATF_FW_BOARD="gxm"
     ;;
   libretech-cc)
-    AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic-libretech-cc
+    (( COMPILE_AMLOGIC ))                                            \
+      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic-libretech-cc \
+      || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/libretech-cc
     AMLOGIC_U_BOOT_BOARD="libretech_cc"
     ATF_FW_BOARD="gxl"
     ;;
 esac
 
 # Compile official ARM Trusted Firmware if needed
-if (( ATF_FW )); then
-  GENERATE_OPTS+=" -a"
-  compile_mainline_atf -b ${ATF_FW_BOARD}
-fi
-
-# Use GXLIMG?
-(( USE_GXLIMG )) && GENERATE_OPTS+=" -g"
+(( ATF_FW )) && compile_mainline_atf -b ${ATF_FW_BOARD}
 
 # Compile official U-Boot for Amlogic based board and burn it on /dev/mmcblk0
 compile_mainline_u-boot -b ${BOARD} \
