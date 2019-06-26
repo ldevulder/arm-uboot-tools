@@ -86,7 +86,9 @@ make PLAT=${BOARD} DEBUG=${DEBUG} bl31 \
 
 # Copy compiled bl31.bin
 echo "- Copying BL31 (ATF firmware) file..."
-copy build/${BOARD}/${RELEASE}/bl31.bin ${OLDPWD}/atf-bl31.bin
+[[ "${BOARD}" =~ "rk3" ]]                                                \
+  && copy build/${BOARD}/${RELEASE}/bl31/bl31.elf ${OLDPWD}/atf-bl31.elf \
+  || copy build/${BOARD}/${RELEASE}/bl31.bin ${OLDPWD}/atf-bl31.bin
 
 # We need to go back into original directory
 cd ${OLDPWD}
