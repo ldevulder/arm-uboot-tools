@@ -33,7 +33,7 @@ function copy() {
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
 typeset -r TMPFS=/dev/shm/u-boot-tmp
-typeset -rx ARCH=arm
+typeset -rx ARCH=arm64
 typeset -rx CROSS_COMPILE=aarch64-elf-
 typeset -x U_BOOT_DIR=~/git/github/u-boot
 typeset -x PATH=~/cross-compile/aarch64/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-elf/bin:$PATH
