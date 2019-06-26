@@ -70,8 +70,8 @@ mkdir -p ${TMPFS} \
   || error "Cannot create temporary directory ${TMPFS}!"
 
 # Copy ATF source in the tmpfs directory
-#rsync -rq --exclude=.git ${ATF_DIR}/ ${TMPFS} \
-rsync -rq ${ATF_DIR}/ ${TMPFS} \
+#rsync -aq --exclude=.git ${ATF_DIR}/ ${TMPFS} \
+rsync -aq ${ATF_DIR}/ ${TMPFS} \
   || error "Cannot copy ${ATF_DIR}/* in ${TMPFS}!"
 
 # Cleanup ATF build
