@@ -15,6 +15,12 @@ EOF
   exit 0
 }
 
+# Error function
+function error() {
+  echo -e "$@" >&2
+  exit 1
+}
+
 # Copy/Check function
 function copy() {
   typeset -r FILE=$1
