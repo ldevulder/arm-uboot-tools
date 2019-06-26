@@ -1,0 +1,66 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+cat >&2 <<EOF
+${SH_FILE} is used to generate/burn official U-Boot binary for Allwinner SoC
+
+Usage: ${SH_FILE} [-c] [-h] [-s]
+
+Where:
+  -c    copy the binary blob files in the current directory
+  -h    this help page
+  -s    "burn" the generated U-Boot file on a sdcard
+EOF
+  exit 0
+}
+
+# Copy/Check function
+function copy() {
+  typeset -r FILE=$1
+  typeset -r DEST=$2
+
+  cp ${FILE} ${DEST} >/dev/null 2>&1 \
+    || error "Error while copying file ${FILE} to ${DEST}!"
+}
+
+# Variable(s)
+typeset -r SH_FILE=${0##*/}
+typeset -r U_BOOT_DIR=/dev/shm/u-boot-tmp
+typeset -i COPY_FW=0
+typeset -i BURN=0
+typeset -l BURN_FILE
+typeset DEV
+
+# Get options
+while getopts "csh" ARG; do
+  case ${ARG} in
+    c) COPY_FW=1
+       ;;
+    s) BURN=1
+       BURN_FILE=u-boot-sunxi-with-spl.bin
+       DEV=/dev/mmcblk0
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Copy U-Boot files in the current directory
+if (( COPY_FW )); then
+  for FILE in ${U_BOOT_DIR}/spl/*spl* ${U_BOOT_DIR}/u-boot*; do
+    echo "- Copy firmware file ${FILE##*/}..."
+    copy ${FILE} ${PWD}
+  done
+fi
+
+# Write U-Boot to sd-card
+if (( BURN )); then
+  echo "- Burning ${BURN_FILE}..."
+  dd if=${U_BOOT_DIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=8k seek=1
+  sync
+fi
+
+# Clean exit
+exit 0
