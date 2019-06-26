@@ -1,8 +1,7 @@
 #!/bin/sh
 
-# Compile official U-Boot for Libretech ALL-H3-CC board and burn it on /dev/mmcblk0
-compile_mainline_atf -b rk3328 \
-  && compile_mainline_u-boot -b evb-rk3328 -s ~/git/github/u-boot-rockchip \
-  && rk_bootloader
+# Compile U-Boot for Libretech ALL-H3-CC board and burn it on /dev/mmcblk0
+compile_mainline_u-boot -b roc-rk3328-cc -s ~/git/github/rockchip/u-boot-firefly \
+  && rk_bootloader -b roc-rk3328-cc -u ~/git/github/rockchip/rkbin -f ${PWD}/fw -s
 
 exit $?

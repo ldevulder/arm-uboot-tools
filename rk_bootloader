@@ -5,13 +5,14 @@ function usage() {
 cat >&2 <<EOF
 ${SH_FILE} is used to generate/burn official U-Boot binary for Rockchip SoC
 
-Usage: ${SH_FILE} -b board [-h] [-s] -u dir
+Usage: ${SH_FILE} -b board [-f dir] [-h] [-s] -u dir
 
 Where:
-  -b board
+  -b    board
+  -f    firmware / pre-compiled binary blob directory
   -h    this help page
   -s    "burn" the generated U-Boot file on a sdcard
-  -u    Rockchip tools directory / pre-compiled binary blob directory
+  -u    Rockchip tools directory
 EOF
   exit 0
 }
@@ -37,19 +38,17 @@ typeset -r U_BOOT_DIR=/dev/shm/u-boot-tmp
 typeset -i BURN=0
 typeset UBOOT_FILE=u-boot.bin
 typeset UBOOT_IMG=u-boot.img
-typeset DDR_FW=bin/rk33/rk3328_ddr_333MHz_v1.13.bin
-typeset MINILOADER_FW=bin/rk33/rk3328_miniloader_v2.43.bin
-typeset LOADER_FW=bin/rk33/rk3328_loader_ddr786_v1.06.243.bin
-typeset ATF_FW=bin/rk33/rk3328_bl31_v1.34.bin
 typeset IDBLOADER_FW=idbloader.img
 typeset TRUST_FW=trust.img
-typeset RK_TOOLS_DIR
-typeset BOARD CHIP DEV
+typeset RK_TOOLS_DIR RK_FW_DIR BOARD CHIP DEV
+typeset DDR_FW MINILOADER_FW LOADER_FW ATF_FW OPTEE_FW
 
 # Get options
-while getopts "b:su:h" ARG; do
+while getopts "b:f:su:h" ARG; do
   case ${ARG} in
     b) BOARD=${OPTARG}
+       ;;
+    f) RK_FW_DIR=${OPTARG}
        ;;
     s) BURN=1
        DEV=/dev/mmcblk0
@@ -70,10 +69,26 @@ shift $((OPTIND-1))
 [[ -z "${RK_TOOLS_DIR}" ]] \
   && error "RK tools directory must be filled!"
 
+# Set default FW directory if needed
+[[ -z "${RK_FW_DIR}" ]] \
+  && RK_FW_DIR=${RK_TOOLS_DIR}/bin/rk33
+
 # Set variables based on the board
 case ${BOARD} in
-  *rk3328*) CHIP=rk3328
-            ;;
+  *rk3328*)
+    CHIP=rk3328
+    if [[ "${RK_FW_DIR}" == "bin/rk33" ]]; then
+      DDR_FW=${RK_FW_DIR}/rk3328_ddr_333MHz_v1.13.bin
+      MINILOADER_FW=${RK_FW_DIR}/rk3328_miniloader_v2.43.bin
+      LOADER_FW=${RK_FW_DIR}/rk3328_loader_ddr786_v1.06.243.bin
+      ATF_FW=${RK_FW_DIR}/rk3328_bl31_v1.34.bin
+    else
+      DDR_FW=${RK_FW_DIR}/rk322xh_ddr_333MHz_v1.16.bin
+      MINILOADER_FW=${RK_FW_DIR}/rk322xh_miniloader_v2.50.bin
+      ATF_FW=${RK_FW_DIR}/rk322xh_bl31_v1.40.elf
+      OPTEE_FW=${RK_FW_DIR}/rk322xh_bl32_v1.51.bin
+    fi
+    ;;
 esac
 
 # Add Rockchip tools into PATH
@@ -82,14 +97,16 @@ typeset -x PATH=${RK_TOOLS_DIR}/bin/:${PATH}
 # Create RK FW image
 cd ${U_BOOT_DIR}
 ${RK_TOOLS_DIR}/tools/loaderimage --pack --uboot ${UBOOT_FILE} ${UBOOT_IMG} 0x200000
-tools/mkimage -n ${CHIP} -T rksd -d ${RK_TOOLS_DIR}/${DDR_FW} ${IDBLOADER_FW}
-cat ${RK_TOOLS_DIR}/${MINILOADER_FW} >> ${IDBLOADER_FW}
+tools/mkimage -n ${CHIP} -T rksd -d ${DDR_FW} ${IDBLOADER_FW}
+cat ${MINILOADER_FW} >> ${IDBLOADER_FW}
 cd ${OLDPWD}
 
 # Copy U-Boot files in the current directory
-for FILE in ${U_BOOT_DIR}/${UBOOT_FILE} ${U_BOOT_DIR}/${UBOOT_IMG} ${RK_TOOLS_DIR}/${DDR_FW} ${RK_TOOLS_DIR}/${MINILOADER_FW} ${RK_TOOLS_DIR}/${LOADER_FW} ${RK_TOOLS_DIR}/${ATF_FW} ${U_BOOT_DIR}/${IDBLOADER_FW}; do
-  echo "- Copy firmware file ${FILE##*/}..."
-  copy ${FILE} ${PWD}
+for FILE in ${U_BOOT_DIR}/${UBOOT_FILE} ${U_BOOT_DIR}/${UBOOT_IMG} ${DDR_FW} ${MINILOADER_FW} ${LOADER_FW} ${ATF_FW} ${OPTEE_FW} ${U_BOOT_DIR}/${IDBLOADER_FW}; do
+  if [[ -e ${FILE} ]]; then
+    echo "- Copy firmware file ${FILE##*/}..."
+    copy ${FILE} ${PWD}
+  fi
 done
 
 # Generate TRUST ini file
@@ -101,10 +118,23 @@ MINOR=2
 SEC=0
 [BL31_OPTION]
 SEC=1
-PATH=${RK_TOOLS_DIR}/${ATF_FW}
+PATH=${ATF_FW}
 ADDR=0x10000
+EOF
+if [[ -z "${OPTEE_FW}" ]]; then
+cat >>trust.ini <<EOF
 [BL32_OPTION]
 SEC=0
+EOF
+else
+cat >>trust.ini <<EOF
+[BL32_OPTION]
+SEC=1
+PATH=${OPTEE_FW}
+ADDR=0x08400000
+EOF
+fi
+cat >>trust.ini <<EOF
 [BL33_OPTION]
 SEC=0
 [OUTPUT]
