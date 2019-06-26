@@ -80,13 +80,9 @@ echo "- Cleaning U-Boot build directory..."
 cd ${TMPFS}
 make clean && make mrproper && make distclean
 
-# Configure U-Boot
-echo "- Configure U-Boot for ${BOARD} board..."
-make ${BOARD}_defconfig
-
 # Compile U-Boot
-echo "- Compiling U-Boot..."
-make || error "Failed to compile U-Boot!"
+echo "- Compile U-Boot for ${BOARD} board..."
+make ${BOARD}_defconfig all || error "Failed to compile U-Boot!"
 
 # We need to go back into original directory
 cd ${OLDPWD}
