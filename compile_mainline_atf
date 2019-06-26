@@ -79,10 +79,10 @@ echo "- Cleaning ATF build directory..."
 cd ${TMPFS}
 make clean && make distclean
 
-# Configure U-Boot
+# Compile ATF
 echo "- Compiling ATF for ${BOARD} board..."
 make PLAT=${BOARD} DEBUG=${DEBUG} bl31 \
-  || error "Failed to compile U-Boot!"
+  || error "Failed to compile ATF!"
 
 # Copy compiled bl31.bin
 echo "- Copying BL31 (ATF firmware) file..."
