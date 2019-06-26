@@ -5,14 +5,21 @@ function usage() {
 cat >&2 <<EOF
 ${SH_FILE} is used to generate/burn official U-Boot binary for Rockchip SoC
 
-Usage: ${SH_FILE} [-c] [-h] [-s]
+Usage: ${SH_FILE} -b board [-h] [-s] -u dir
 
 Where:
-  -c    copy the binary blob files in the current directory
+  -b board
   -h    this help page
   -s    "burn" the generated U-Boot file on a sdcard
+  -u    Rockchip tools directory / pre-compiled binary blob directory
 EOF
   exit 0
+}
+
+# Error function
+function error() {
+  echo -e "$@" >&2
+  exit 1
 }
 
 # Copy/Check function
@@ -27,19 +34,27 @@ function copy() {
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
 typeset -r U_BOOT_DIR=/dev/shm/u-boot-tmp
-typeset -i COPY_FW=0
 typeset -i BURN=0
-typeset -l BURN_FILE
-typeset DEV
+typeset UBOOT_FILE=u-boot.bin
+typeset UBOOT_IMG=u-boot.img
+typeset DDR_FW=bin/rk33/rk3328_ddr_333MHz_v1.13.bin
+typeset MINILOADER_FW=bin/rk33/rk3328_miniloader_v2.43.bin
+typeset LOADER_FW=bin/rk33/rk3328_loader_ddr786_v1.06.243.bin
+typeset ATF_FW=bin/rk33/rk3328_bl31_v1.34.bin
+typeset IDBLOADER_FW=idbloader.img
+typeset TRUST_FW=trust.img
+typeset RK_TOOLS_DIR
+typeset BOARD CHIP DEV
 
 # Get options
-while getopts "csh" ARG; do
+while getopts "b:su:h" ARG; do
   case ${ARG} in
-    c) COPY_FW=1
+    b) BOARD=${OPTARG}
        ;;
     s) BURN=1
-       BURN_FILE=u-boot-sunxi-with-spl.bin
        DEV=/dev/mmcblk0
+       ;;
+    u) RK_TOOLS_DIR=${OPTARG}
        ;;
     h|*) usage
        ;;
@@ -47,21 +62,65 @@ while getopts "csh" ARG; do
 done
 shift $((OPTIND-1))
 
-# Copy U-Boot files in the current directory
-if (( COPY_FW )); then
-  for FILE in ${U_BOOT_DIR}/spl/u-boot-spl.bin ${U_BOOT_DIR}/u-boot.itb; do
-    echo "- Copy firmware file ${FILE##*/}..."
-    copy ${FILE} ${PWD}
-  done
-fi
+# Board model must be filled!
+[[ -z "${BOARD}" ]] \
+  && error "Board model must be filled!"
+
+# RK tools directory must be filled!
+[[ -z "${RK_TOOLS_DIR}" ]] \
+  && error "RK tools directory must be filled!"
+
+# Set variables based on the board
+case ${BOARD} in
+  *rk3328*) CHIP=rk3328
+            ;;
+esac
+
+# Add Rockchip tools into PATH
+typeset -x PATH=${RK_TOOLS_DIR}/bin/:${PATH}
 
 # Create RK FW image
-${U_BOOT_DIR}/tools/mkimage -n ${BOARD} -T rksd -d u-boot-spl.bin idbspl.img
+cd ${U_BOOT_DIR}
+${RK_TOOLS_DIR}/tools/loaderimage --pack --uboot ${UBOOT_FILE} ${UBOOT_IMG} 0x200000
+tools/mkimage -n ${CHIP} -T rksd -d ${RK_TOOLS_DIR}/${DDR_FW} ${IDBLOADER_FW}
+cat ${RK_TOOLS_DIR}/${MINILOADER_FW} >> ${IDBLOADER_FW}
+cd ${OLDPWD}
+
+# Copy U-Boot files in the current directory
+for FILE in ${U_BOOT_DIR}/${UBOOT_FILE} ${U_BOOT_DIR}/${UBOOT_IMG} ${RK_TOOLS_DIR}/${DDR_FW} ${RK_TOOLS_DIR}/${MINILOADER_FW} ${RK_TOOLS_DIR}/${LOADER_FW} ${RK_TOOLS_DIR}/${ATF_FW} ${U_BOOT_DIR}/${IDBLOADER_FW}; do
+  echo "- Copy firmware file ${FILE##*/}..."
+  copy ${FILE} ${PWD}
+done
+
+# Generate TRUST ini file
+cat >trust.ini <<EOF
+[VERSION]
+MAJOR=1
+MINOR=2
+[BL30_OPTION]
+SEC=0
+[BL31_OPTION]
+SEC=1
+PATH=${RK_TOOLS_DIR}/${ATF_FW}
+ADDR=0x10000
+[BL32_OPTION]
+SEC=0
+[BL33_OPTION]
+SEC=0
+[OUTPUT]
+PATH=trust.img
+EOF
+
+# Generate TRUST FW
+${RK_TOOLS_DIR}/tools/trust_merger trust.ini
 
 # Write U-Boot to sd-card
 if (( BURN )); then
   echo "- Burning ${BURN_FILE}..."
-  dd if=${U_BOOT_DIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=8k seek=1
+
+  dd if=${IDBLOADER_FW} of=${DEV} conv=fsync,notrunc seek=64
+  dd if=${UBOOT_IMG} of=${DEV} conv=fsync,notrunc seek=16384
+  dd if=${TRUST_FW} of=${DEV} conv=fsync,notrunc seek=24576
   sync
 fi
 
