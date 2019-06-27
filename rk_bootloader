@@ -146,10 +146,11 @@ ${RK_TOOLS_DIR}/tools/trust_merger trust.ini
 
 # Write U-Boot to sd-card
 if (( BURN )); then
-  echo "- Burning ${BURN_FILE}..."
-
+  echo "- Burning ${IDBLOADER_FW}..."
   dd if=${IDBLOADER_FW} of=${DEV} conv=fsync,notrunc seek=64
+  echo "- Burning ${UBOOT_IMG}..."
   dd if=${UBOOT_IMG} of=${DEV} conv=fsync,notrunc seek=16384
+  echo "- Burning ${TRUST_FW}..."
   dd if=${TRUST_FW} of=${DEV} conv=fsync,notrunc seek=24576
   sync
 fi
