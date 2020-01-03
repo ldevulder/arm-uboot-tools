@@ -2,7 +2,7 @@
 
 # Usage function
 function usage() {
-cat >&2 <<EOF
+  cat >&2 <<EOF
 ${SH_FILE} is used to compile, generate and burn official U-Boot for Amlogic GXL/GXM SoC
 
 Usage: ${SH_FILE} [a-] -b board [-g] [-n]
@@ -13,7 +13,7 @@ Where:
   -g    use gxlimg to generate image instead of aml_encrypt_gxl
   -n    don't compile Amlogic U-Boot (use pre-compiled binary blob)
 
-Currently supported Amlogic boards are: khadas-vim, khadas-vim2, libretech-cc
+Currently supported Amlogic boards are: khadas-vim, khadas-vim2, libretech-cc and libretech-ac
 EOF
   exit 0
 }
@@ -74,11 +74,11 @@ case ${BOARD} in
     AMLOGIC_U_BOOT_BOARD="kvim2"
     ATF_FW_BOARD="gxm"
     ;;
-  libretech-cc)
-    (( COMPILE_AMLOGIC ))                                            \
-      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic-libretech-cc \
-      || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/libretech-cc
-    AMLOGIC_U_BOOT_BOARD="libretech_cc"
+  libretech-ac|libretech-cc)
+    (( COMPILE_AMLOGIC ))                                         \
+      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-baylibre:${BOARD} \
+      || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/${BOARD}
+    AMLOGIC_U_BOOT_BOARD=${BOARD//-/_}
     ATF_FW_BOARD="gxl"
     ;;
 esac

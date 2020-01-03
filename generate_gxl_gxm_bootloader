@@ -5,7 +5,7 @@ function usage() {
 cat >&2 <<EOF
 ${SH_FILE} is used to convert official U-Boot generated binary into a usable bootloader for Amlogic GXL/GXM SoC
 
-Usage: ${SH_FILE} [a-] -b board [-c] [-h] [-n] [-o] [-s] -u dir
+Usage: ${SH_FILE} [a-] -b board [-c] [-h] [-n] [-o] [-s] -u dir[:branch]
 
 Where:
   -a    use official ARM ATF fimrware
@@ -51,9 +51,7 @@ typeset -i COPY_FW=0
 typeset -i USE_GXLIMG=0
 typeset -i COMPILE_AMLOGIC=1
 typeset -l BURN_FILE=u-boot.bin.sd.bin
-typeset AMLOGIC_U_BOOT_DIR
-typeset BOARD
-typeset DEV
+typeset AMLOGIC_U_BOOT_DIR BRANCH BOARD DEV
 
 # Get options
 while getopts "ab:cghnosu:" ARG; do
@@ -74,7 +72,8 @@ while getopts "ab:cghnosu:" ARG; do
     s) BURN=1
        DEV=/dev/mmcblk0
        ;;
-    u) AMLOGIC_U_BOOT_DIR=${OPTARG}
+    u) AMLOGIC_U_BOOT_DIR=${OPTARG%:*}
+       BRANCH=${OPTARG#*:}
        ;;
     h|*) usage
        ;;
@@ -112,6 +111,17 @@ mkdir -p ${TMPFS} \
 #rsync -aq --exclude=.git ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
 rsync -aq ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${AMLOGIC_U_BOOT_DIR}/* in ${TMPFS}!"
+
+# Select the correct branch if needed
+if [[ -n "${BRANCH}" ]]; then
+  echo "- Select branch '${BRANCH}' for Amlogic U-Boot..."
+  cd ${TMPFS}
+
+  git branch ${BRANCH} || error "Failed to select branch!"
+
+  # We need to go back into original directory
+  cd ${OLDPWD}
+fi
 
 if (( COMPILE_AMLOGIC )); then
   echo "- Cleaning/Creating Amlogic U-Boot build directory..."
@@ -189,9 +199,9 @@ ${BLOB_FIPDIR}/blx_fix.sh  \
 echo "- Encrypting BL* files..."
 if (( USE_GXLIMG )); then
   ${GXLIMG_BIN} -t bl2 -c ${FIPDIR}/bl2_new.bin ${FIPDIR}/bl2.bin.enc
-  ${GXLIMG_BIN} -t bl3 -c ${FIPDIR}/bl30_new.bin ${FIPDIR}/bl30.bin.enc
-  ${GXLIMG_BIN} -t bl3 -c ${FIPDIR}/bl31.bin ${FIPDIR}/bl31.bin.enc
-  ${GXLIMG_BIN} -t bl3 -c ${FIPDIR}/bl33.bin ${FIPDIR}/bl33.bin.enc
+  ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl30_new.bin ${FIPDIR}/bl30.bin.enc
+  ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl31.bin ${FIPDIR}/bl31.bin.enc
+  ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl33.bin ${FIPDIR}/bl33.bin.enc
 else
   ${AML_ENCRYPT_BIN} --bl2sig --input ${FIPDIR}/bl2_new.bin --output ${FIPDIR}/bl2.n.bin.sig
   ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl30_new.bin
