@@ -147,12 +147,13 @@ ${RK_TOOLS_DIR}/tools/trust_merger trust.ini
 # Write U-Boot to sd-card
 if (( BURN )); then
   echo "- Burning ${IDBLOADER_FW}..."
-  dd if=${IDBLOADER_FW} of=${DEV} conv=fsync,notrunc seek=64
+  dd if=${IDBLOADER_FW} of=${DEV} conv=fsync,notrunc oflag=direct seek=64
   echo "- Burning ${UBOOT_IMG}..."
-  dd if=${UBOOT_IMG} of=${DEV} conv=fsync,notrunc seek=16384
+  dd if=${UBOOT_IMG} of=${DEV} conv=fsync,notrunc oflag=direct seek=16384
   echo "- Burning ${TRUST_FW}..."
-  dd if=${TRUST_FW} of=${DEV} conv=fsync,notrunc seek=24576
-  sync
+  dd if=${TRUST_FW} of=${DEV} conv=fsync,notrunc oflag=direct seek=24576
+  # Should be not needed because of 'oflag=direct' but it's not a bad to do it
+  sync ${DEV}
 fi
 
 # Clean exit

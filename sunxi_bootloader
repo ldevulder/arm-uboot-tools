@@ -64,8 +64,9 @@ fi
 # Write U-Boot to sd-card
 if (( BURN )); then
   echo "- Burning ${BURN_FILE}..."
-  dd if=${U_BOOT_DIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=8k seek=1
-  sync
+  dd if=${U_BOOT_DIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc oflag=direct bs=8k seek=1
+  # Should be not needed because of 'oflag=direct' but it's not a bad to do it
+  sync ${DEV}
 fi
 
 # Clean exit
