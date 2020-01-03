@@ -237,13 +237,12 @@ fi
 if (( BURN )); then
   echo "- Burning ${BURN_FILE}..."
   if (( USE_GXLIMG )); then
-    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc oflag=direct bs=512 seek=1
-    dd if=/dev/zero of=${DEV} conv=fsync,notrunc oflag=direct bs=1 count=444
+    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 seek=1
+    dd if=/dev/zero of=${DEV} conv=fsync,notrunc bs=1 count=444
   else
-    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc oflag=direct bs=512 skip=1 seek=1
-    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc oflag=direct bs=1 count=444
+    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=512 skip=1 seek=1
+    dd if=${FIPDIR}/${BURN_FILE} of=${DEV} conv=fsync,notrunc bs=1 count=444
   fi
-  # Should be not needed because of 'oflag=direct' but it's not a bad to do it
   sync ${DEV}
 fi
 
