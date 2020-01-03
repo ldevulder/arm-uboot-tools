@@ -112,20 +112,17 @@ mkdir -p ${TMPFS} \
 rsync -aq ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${AMLOGIC_U_BOOT_DIR}/* in ${TMPFS}!"
 
-# Select the correct branch if needed
-if [[ -n "${BRANCH}" ]]; then
-  echo "- Select branch '${BRANCH}' for Amlogic U-Boot..."
-  cd ${TMPFS}
-
-  git branch ${BRANCH} || error "Failed to select branch!"
-
-  # We need to go back into original directory
-  cd ${OLDPWD}
-fi
-
 if (( COMPILE_AMLOGIC )); then
-  echo "- Cleaning/Creating Amlogic U-Boot build directory..."
+  # Go to temp U-Boot dir
   cd ${TMPFS}
+
+  # Select the correct branch if needed
+  if [[ -n "${BRANCH}" ]]; then
+    echo "- Select branch '${BRANCH}' for Amlogic U-Boot..."
+    git branch ${BRANCH} || error "Failed to select branch!"
+  fi
+
+  echo "- Cleaning/Creating Amlogic U-Boot build directory..."
   make clean && make mrproper && make distclean
 
   # Configure Amlogic U-Boot
