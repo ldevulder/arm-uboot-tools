@@ -195,12 +195,12 @@ ${BLOB_FIPDIR}/blx_fix.sh  \
 # Encode BL files
 echo "- Encrypting BL* files..."
 if (( USE_GXLIMG )); then
-  ${GXLIMG_BIN} -t bl2 -c ${FIPDIR}/bl2_new.bin ${FIPDIR}/bl2.bin.enc
-  ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl30_new.bin ${FIPDIR}/bl30.bin.enc
+  ${GXLIMG_BIN} -t bl2 -s ${FIPDIR}/bl2_new.bin ${FIPDIR}/bl2_new.bin.sig
+  ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl30_new.bin ${FIPDIR}/bl30_new.bin.enc
   ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl31.img ${FIPDIR}/bl31.img.enc
   ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl33.bin ${FIPDIR}/bl33.bin.enc
 else
-  ${AML_ENCRYPT_BIN} --bl2sig --input ${FIPDIR}/bl2_new.bin --output ${FIPDIR}/bl2.n.bin.sig
+  ${AML_ENCRYPT_BIN} --bl2sig --input ${FIPDIR}/bl2_new.bin
   ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl30_new.bin
   ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.img
   ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl33.bin
@@ -209,17 +209,17 @@ fi
 # Create u-boot.* files
 echo "- Creating final u-boot.bin files..."
 if (( USE_GXLIMG )); then
-  ${GXLIMG_BIN} -t fip            \
-    --bl2 ${FIPDIR}/bl2.bin.enc   \
-    --bl30 ${FIPDIR}/bl30.bin.enc \
-    --bl31 ${FIPDIR}/bl31.img.enc \
-    --bl33 ${FIPDIR}/bl33.bin.enc \
+  ${GXLIMG_BIN} -t fip                \
+    --bl2 ${FIPDIR}/bl2_new.bin.sig   \
+    --bl30 ${FIPDIR}/bl30_new.bin.enc \
+    --bl31 ${FIPDIR}/bl31.img.enc     \
+    --bl33 ${FIPDIR}/bl33.bin.enc     \
     ${FIPDIR}/u-boot.bin
 else
   ${AML_ENCRYPT_BIN}                  \
     --bootmk                          \
     --output ${FIPDIR}/u-boot.bin     \
-    --bl2 ${FIPDIR}/bl2.n.bin.sig     \
+    --bl2 ${FIPDIR}/bl2_new.bin.sig   \
     --bl30 ${FIPDIR}/bl30_new.bin.enc \
     --bl31 ${FIPDIR}/bl31.img.enc     \
     --bl33 ${FIPDIR}/bl33.bin.enc
