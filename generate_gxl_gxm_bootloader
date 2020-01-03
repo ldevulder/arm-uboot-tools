@@ -159,11 +159,11 @@ copy ${BLOB_FIPDIR}/gxl/bl30.bin ${FIPDIR}
 copy ${BLOB_FIPDIR}/gxl/bl301.bin ${FIPDIR}
 if (( ATF_FW )); then
   echo "- Using ATF BL31..."
-  copy atf-bl31.bin ${FIPDIR}/bl31.bin \
+  copy atf-bl31.bin ${FIPDIR}/bl31.img \
     || error "Error while copying ATF firmware!"
 else
   echo "- Using Amlogic BL31..."
-  copy ${BLOB_FIPDIR}/gxl/bl31.bin ${FIPDIR}
+  copy ${BLOB_FIPDIR}/gxl/bl31.img ${FIPDIR}
 fi
 
 # Create BL3-0
@@ -197,12 +197,12 @@ echo "- Encrypting BL* files..."
 if (( USE_GXLIMG )); then
   ${GXLIMG_BIN} -t bl2 -c ${FIPDIR}/bl2_new.bin ${FIPDIR}/bl2.bin.enc
   ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl30_new.bin ${FIPDIR}/bl30.bin.enc
-  ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl31.bin ${FIPDIR}/bl31.bin.enc
+  ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl31.img ${FIPDIR}/bl31.img.enc
   ${GXLIMG_BIN} -t bl3x -c ${FIPDIR}/bl33.bin ${FIPDIR}/bl33.bin.enc
 else
   ${AML_ENCRYPT_BIN} --bl2sig --input ${FIPDIR}/bl2_new.bin --output ${FIPDIR}/bl2.n.bin.sig
   ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl30_new.bin
-  ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.bin
+  ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl31.img
   ${AML_ENCRYPT_BIN} --bl3enc --input ${FIPDIR}/bl33.bin
 fi
 
@@ -212,7 +212,7 @@ if (( USE_GXLIMG )); then
   ${GXLIMG_BIN} -t fip            \
     --bl2 ${FIPDIR}/bl2.bin.enc   \
     --bl30 ${FIPDIR}/bl30.bin.enc \
-    --bl31 ${FIPDIR}/bl31.bin.enc \
+    --bl31 ${FIPDIR}/bl31.img.enc \
     --bl33 ${FIPDIR}/bl33.bin.enc \
     ${FIPDIR}/u-boot.bin
 else
@@ -221,7 +221,7 @@ else
     --output ${FIPDIR}/u-boot.bin     \
     --bl2 ${FIPDIR}/bl2.n.bin.sig     \
     --bl30 ${FIPDIR}/bl30_new.bin.enc \
-    --bl31 ${FIPDIR}/bl31.bin.enc     \
+    --bl31 ${FIPDIR}/bl31.img.enc     \
     --bl33 ${FIPDIR}/bl33.bin.enc
 fi
 
