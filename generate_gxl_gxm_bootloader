@@ -2,7 +2,7 @@
 
 # Usage function
 function usage() {
-cat >&2 <<EOF
+  cat >&2 <<EOF
 ${SH_FILE} is used to convert official U-Boot generated binary into a usable bootloader for Amlogic GXL/GXM SoC
 
 Usage: ${SH_FILE} [a-] -b board [-c] [-h] [-n] [-o] [-s] -u dir[:branch]

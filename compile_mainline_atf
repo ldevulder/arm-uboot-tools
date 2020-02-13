@@ -2,7 +2,7 @@
 
 # Usage function
 function usage() {
-cat >&2 <<EOF
+  cat >&2 <<EOF
 ${SH_FILE} is used to compile official ATF firmware
 
 Usage: ${SH_FILE} -b board [-h] [-d dir]
