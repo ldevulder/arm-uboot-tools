@@ -35,13 +35,14 @@ function copy() {
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
 typeset -r U_BOOT_DIR=/dev/shm/u-boot-tmp
-typeset -i BURN=0
+typeset -i BURN=0 ATF=0
 typeset UBOOT_FILE=u-boot.bin
 typeset UBOOT_IMG=u-boot.img
 typeset IDBLOADER_FW=idbloader.img
 typeset TRUST_FW=trust.img
 typeset RK_TOOLS_DIR RK_FW_DIR BOARD CHIP DEV
-typeset DDR_FW MINILOADER_FW LOADER_FW ATF_FW OPTEE_FW
+typeset DDR_FW MINILOADER_FW LOADER_FW ATF_FW OPTEE_FW IDBLOADER_FW
+typeset -x ATF_FW_FILE=$(ls ${PWD}/atf-bl31.* 2>/dev/null)
 
 # Get options
 while getopts "b:f:su:h" ARG; do
@@ -65,52 +66,61 @@ shift $((OPTIND-1))
 [[ -z "${BOARD}" ]] \
   && error "Board model must be filled!"
 
-# RK tools directory must be filled!
-[[ -z "${RK_TOOLS_DIR}" ]] \
-  && error "RK tools directory must be filled!"
+if [[ -s "${ATF_FW_FILE}" ]]; then
+  echo "- ATF Firmware detected!"
+  IDBLOADER_FW=u-boot-rockchip.bin
+  ATF=1
+else
+  # RK tools directory must be filled!
+  [[ -z "${RK_TOOLS_DIR}" ]] \
+    && error "RK tools directory must be filled!"
 
-# Set default FW directory if needed
-[[ -z "${RK_FW_DIR}" ]] \
-  && RK_FW_DIR=${RK_TOOLS_DIR}/bin/rk33
+  # Set default FW directory if needed
+  [[ -z "${RK_FW_DIR}" ]] \
+    && RK_FW_DIR=${RK_TOOLS_DIR}/bin/rk33
 
-# Set variables based on the board
-case ${BOARD} in
-  *rk3328*)
-    CHIP=rk3328
-    if [[ "${RK_FW_DIR}" == "bin/rk33" ]]; then
-      DDR_FW=${RK_FW_DIR}/rk3328_ddr_333MHz_v1.13.bin
-      MINILOADER_FW=${RK_FW_DIR}/rk3328_miniloader_v2.43.bin
-      LOADER_FW=${RK_FW_DIR}/rk3328_loader_ddr786_v1.06.243.bin
-      ATF_FW=${RK_FW_DIR}/rk3328_bl31_v1.34.bin
-    else
-      DDR_FW=${RK_FW_DIR}/rk322xh_ddr_333MHz_v1.16.bin
-      MINILOADER_FW=${RK_FW_DIR}/rk322xh_miniloader_v2.50.bin
-      ATF_FW=${RK_FW_DIR}/rk322xh_bl31_v1.40.elf
-      OPTEE_FW=${RK_FW_DIR}/rk322xh_bl32_v1.51.bin
-    fi
-    ;;
-esac
+  # Set variables based on the board
+  case ${BOARD} in
+    *rk3328*)
+      CHIP=rk3328
+      if [[ "${RK_FW_DIR}" == "bin/rk33" ]]; then
+        DDR_FW=${RK_FW_DIR}/rk3328_ddr_333MHz_v1.13.bin
+        MINILOADER_FW=${RK_FW_DIR}/rk3328_miniloader_v2.43.bin
+        ATF_FW=${RK_FW_DIR}/rk3328_bl31_v1.34.bin
+        LOADER_FW=${RK_FW_DIR}/rk3328_loader_ddr786_v1.06.243.bin
+      else
+        DDR_FW=${RK_FW_DIR}/rk322xh_ddr_333MHz_v1.16.bin
+        MINILOADER_FW=${RK_FW_DIR}/rk322xh_miniloader_v2.50.bin
+        ATF_FW=${RK_FW_DIR}/rk322xh_bl31_v1.40.elf
+        OPTEE_FW=${RK_FW_DIR}/rk322xh_bl32_v1.51.bin
+      fi
+      ;;
+  esac
+fi
 
 # Add Rockchip tools into PATH
 typeset -x PATH=${RK_TOOLS_DIR}/bin/:${PATH}
 
-# Create RK FW image
-cd ${U_BOOT_DIR}
-${RK_TOOLS_DIR}/tools/loaderimage --pack --uboot ${UBOOT_FILE} ${UBOOT_IMG} 0x200000
-tools/mkimage -n ${CHIP} -T rksd -d ${DDR_FW} ${IDBLOADER_FW}
-cat ${MINILOADER_FW} >> ${IDBLOADER_FW}
-cd ${OLDPWD}
+# Create RK FW image if needed
+if ! (( ATF )); then
+  cd ${U_BOOT_DIR}
+  ${RK_TOOLS_DIR}/tools/loaderimage --pack --uboot ${UBOOT_FILE} ${UBOOT_IMG} 0x200000
+  tools/mkimage -n ${CHIP} -T rksd -d ${DDR_FW} ${IDBLOADER_FW}
+  cat ${MINILOADER_FW} >> ${IDBLOADER_FW}
+  cd ${OLDPWD}
+fi
 
 # Copy U-Boot files in the current directory
-for FILE in ${U_BOOT_DIR}/${UBOOT_FILE} ${U_BOOT_DIR}/${UBOOT_IMG} ${DDR_FW} ${MINILOADER_FW} ${LOADER_FW} ${ATF_FW} ${OPTEE_FW} ${U_BOOT_DIR}/${IDBLOADER_FW}; do
-  if [[ -e ${FILE} ]]; then
+for FILE in ${U_BOOT_DIR}/${UBOOT_FILE} ${U_BOOT_DIR}/${UBOOT_IMG} ${U_BOOT_DIR}/${IDBLOADER_FW} ${DDR_FW} ${MINILOADER_FW} ${LOADER_FW} ${ATF_FW} ${OPTEE_FW}; do
+  if [[ -f ${FILE} ]]; then
     echo "- Copy firmware file ${FILE##*/}..."
     copy ${FILE} ${PWD}
   fi
 done
 
-# Generate TRUST ini file
-cat >trust.ini <<EOF
+# Generate TRUST ini file if needed
+if ! (( ATF )); then
+  cat >trust.ini <<EOF
 [VERSION]
 MAJOR=1
 MINOR=2
@@ -121,37 +131,40 @@ SEC=1
 PATH=${ATF_FW}
 ADDR=0x10000
 EOF
-if [[ -z "${OPTEE_FW}" ]]; then
-cat >>trust.ini <<EOF
+  if [[ -z "${OPTEE_FW}" ]]; then
+    cat >>trust.ini <<EOF
 [BL32_OPTION]
 SEC=0
 EOF
-else
-cat >>trust.ini <<EOF
+  else
+    cat >>trust.ini <<EOF
 [BL32_OPTION]
 SEC=1
 PATH=${OPTEE_FW}
 ADDR=0x08400000
 EOF
-fi
-cat >>trust.ini <<EOF
+  fi
+  cat >>trust.ini <<EOF
 [BL33_OPTION]
 SEC=0
 [OUTPUT]
 PATH=trust.img
 EOF
 
-# Generate TRUST FW
-${RK_TOOLS_DIR}/tools/trust_merger trust.ini
+  # Generate TRUST FW
+  ${RK_TOOLS_DIR}/tools/trust_merger trust.ini
+fi
 
 # Write U-Boot to sd-card
 if (( BURN )); then
   echo "- Burning ${IDBLOADER_FW}..."
   dd if=${IDBLOADER_FW} of=${DEV} conv=fsync,notrunc seek=64
-  echo "- Burning ${UBOOT_IMG}..."
-  dd if=${UBOOT_IMG} of=${DEV} conv=fsync,notrunc seek=16384
-  echo "- Burning ${TRUST_FW}..."
-  dd if=${TRUST_FW} of=${DEV} conv=fsync,notrunc seek=24576
+  if ! (( ATF )); then
+    echo "- Burning ${UBOOT_IMG}..."
+    dd if=${UBOOT_IMG} of=${DEV} conv=fsync,notrunc seek=16384
+    echo "- Burning ${TRUST_FW}..."
+    dd if=${TRUST_FW} of=${DEV} conv=fsync,notrunc seek=24576
+  fi
   sync ${DEV}
 fi
 

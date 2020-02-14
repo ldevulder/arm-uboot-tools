@@ -1,0 +1,40 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+  cat >&2 <<EOF
+${SH_FILE} is used to compile, generate and burn official U-Boot for ROC-RK3388-CC
+
+Usage: ${SH_FILE} [a-] [-h]
+
+Where:
+  -a    use official ARM ATF fimrware
+  -h    this help page
+EOF
+  exit 0
+}
+
+# Variable(s)
+typeset -r SH_FILE=${0##*/}
+typeset -i ATF_FW=0
+typeset -r BOARD=roc-cc-rk3328
+typeset RK_BL_OPTS="-u ${HOME}/git/github/rockchip/rkbin -f ${HOME}/firmware/${BOARD}/fw"
+
+# Get options
+while getopts "ah" ARG; do
+  case ${ARG} in
+    a) ATF_FW=1
+       unset RK_BL_OPTS
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Compile U-Boot for ROC-RK3328-CC board and burn it on /dev/mmcblk0
+(( ATF_FW )) && compile_mainline_atf -b rk3328
+compile_mainline_u-boot -b ${BOARD} \
+  && rk_bootloader -b ${BOARD} -s ${RK_BL_OPTS}
+
+exit $?

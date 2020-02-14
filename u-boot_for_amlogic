@@ -5,12 +5,13 @@ function usage() {
   cat >&2 <<EOF
 ${SH_FILE} is used to compile, generate and burn official U-Boot for Amlogic GXL/GXM SoC
 
-Usage: ${SH_FILE} [a-] -b board [-g] [-n]
+Usage: ${SH_FILE} [a-] -b board [-g] [-h] [-n]
 
 Where:
   -a    use official ARM ATF fimrware
   -b    name of the board to configure
   -g    use gxlimg to generate image instead of aml_encrypt_gxl
+  -h    this help page
   -n    don't compile Amlogic U-Boot (use pre-compiled binary blob)
 
 Currently supported Amlogic boards are: khadas-vim, khadas-vim2, libretech-cc and libretech-ac
