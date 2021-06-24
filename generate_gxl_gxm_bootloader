@@ -119,7 +119,7 @@ if (( COMPILE_AMLOGIC )); then
   # Select the correct branch if needed
   if [[ -n "${BRANCH}" ]]; then
     echo "- Select branch '${BRANCH}' for Amlogic U-Boot..."
-    git branch ${BRANCH} || error "Failed to select branch!"
+    git checkout ${BRANCH} || error "Failed to select branch!"
   fi
 
   echo "- Cleaning/Creating Amlogic U-Boot build directory..."
