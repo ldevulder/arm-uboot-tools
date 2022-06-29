@@ -52,7 +52,7 @@ while getopts "b:f:su:h" ARG; do
     f) RK_FW_DIR=${OPTARG}
        ;;
     s) BURN=1
-       DEV=/dev/mmcblk0
+       DEV=${MMC_DEV:=/dev/mmcblk0}
        ;;
     u) RK_TOOLS_DIR=${OPTARG}
        ;;

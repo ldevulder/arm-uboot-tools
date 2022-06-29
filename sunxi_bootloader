@@ -45,7 +45,7 @@ while getopts "csh" ARG; do
        ;;
     s) BURN=1
        BURN_FILE=u-boot-sunxi-with-spl.bin
-       DEV=/dev/mmcblk0
+       DEV=${MMC_DEV:=/dev/mmcblk0}
        ;;
     h|*) usage
        ;;

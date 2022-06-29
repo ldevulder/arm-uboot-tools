@@ -70,7 +70,7 @@ while getopts "ab:cghnosu:" ARG; do
     o) COPY_UBOOT_BL33=0
        ;;
     s) BURN=1
-       DEV=/dev/mmcblk0
+       DEV=${MMC_DEV:=/dev/mmcblk0}
        ;;
     u) AMLOGIC_U_BOOT_DIR=${OPTARG%:*}
        BRANCH=${OPTARG#*:}
