@@ -89,9 +89,9 @@ else
         ATF_FW=${RK_FW_DIR}/rk3328_bl31_v1.34.bin
         LOADER_FW=${RK_FW_DIR}/rk3328_loader_ddr786_v1.06.243.bin
       else
-        DDR_FW=${RK_FW_DIR}/rk322xh_ddr_333MHz_v1.17.bin
+        DDR_FW=${RK_FW_DIR}/rk3328_ddr_333MHz_v1.19.bin
         MINILOADER_FW=${RK_FW_DIR}/rk322xh_miniloader_v2.50.bin
-        ATF_FW=${RK_FW_DIR}/rk322xh_bl31_v1.46.elf
+        ATF_FW=${RK_FW_DIR}/rk322xh_bl31_v1.49.elf
         OPTEE_FW=${RK_FW_DIR}/rk322xh_bl32_v2.01.bin
       fi
       ;;
