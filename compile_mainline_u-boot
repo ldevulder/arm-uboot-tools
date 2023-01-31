@@ -36,6 +36,8 @@ typeset -r SH_FILE=${0##*/}
 typeset -r TMPFS=/dev/shm/u-boot-tmp
 typeset -x U_BOOT_DIR=~/git/github/u-boot
 typeset -x ATF_FW_FILE=$(ls ${PWD}/atf-bl31.* 2>/dev/null)
+typeset -x CRUST_FW_FILE=$(ls ${PWD}/scp.* 2>/dev/null)
+typeset -x SCP=/dev/null
 typeset -x ARCH BOARD
 
 # Get options
@@ -62,17 +64,17 @@ shift $((OPTIND-1))
   && error "Board model must be filled!\n"
 
 # Define some vars according to the arch
+typeset -x CROSS_COMPILE=${ARCH}-elf-
 case ${ARCH} in
-  arm64)
-    typeset -x CROSS_COMPILE=aarch64-elf-
-    typeset -x PATH=~/cross-compile/aarch64/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-elf/bin:$PATH
+  aarch64)
+    typeset -x PATH=~/cross-compile/aarch64/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH
     ;;
   riscv64)
     # Current version uses cross-compiler provided by the OS
     #typeset -x CROSS_COMPILE=${ARCH}-unknown-elf-
     #typeset -x PATH=~/cross-compile/${ARCH}/gcc-riscv-9.2.0-2020.04-x86_64_${ARCH}-unknown-gnu/bin:$PATH
     #typeset -x LD_LIBRARY_PATH=~/cross-compile/${ARCH}/gcc-riscv-9.2.0-2020.04-x86_64_${ARCH}-unknown-gnu/lib:$LD_LIBRARY_PATH
-    typeset -x CROSS_COMPILE=${ARCH}-elf-
+    : TODO
     ;;
   *)
     error "Unknown architecture '${ARCH}'!\n"
@@ -85,6 +87,13 @@ if [[ -s "${ATF_FW_FILE}" ]]; then
   export BL31=${ATF_FW_FILE}
 fi
 
+# Is CRUST firmware detected?
+# SCP is the variable used by U-Boot
+if [[ -s "${CRUST_FW_FILE}" ]]; then
+  echo "- CRUST Firmware detected!"
+  export SCP=${CRUST_FW_FILE}
+fi
+
 # Remove old TMPFS and re-create it
 echo "- Cleaning/Creating ${TMPFS} directory..."
 rm -rf ${TMPFS} \
@@ -93,7 +102,6 @@ mkdir -p ${TMPFS} \
   || error "Cannot create temporary directory ${TMPFS}!"
 
 # Copy u-boot source in the tmpfs directory
-#rsync -aq --exclude=.git ${U_BOOT_DIR}/ ${TMPFS} \
 rsync -aq ${U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${U_BOOT_DIR}/* in ${TMPFS}!"
 

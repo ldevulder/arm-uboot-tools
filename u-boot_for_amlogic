@@ -88,7 +88,7 @@ esac
 (( ATF_FW )) && compile_mainline_atf -b ${ATF_FW_BOARD}
 
 # Compile official U-Boot for Amlogic based board and burn it on /dev/mmcblk0
-compile_mainline_u-boot -a arm64 -b ${BOARD} \
+compile_mainline_u-boot -a aarch64 -b ${BOARD} \
   && generate_gxl_gxm_bootloader -u ${AMLOGIC_U_BOOT_DIR} -b ${AMLOGIC_U_BOOT_BOARD} ${GENERATE_OPTS}
 
 exit $?

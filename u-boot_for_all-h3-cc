@@ -1,8 +1,12 @@
 #!/bin/sh
 
+# Variable(s)
+typeset BOARD=libretech_all_h3_cc_h5
+
 # Compile official U-Boot for Libretech ALL-H3-CC board and burn it on /dev/mmcblk0
-compile_mainline_atf -b sun50i_a64                              \
-  && compile_mainline_u-boot -a arm64 -b libretech_all_h3_cc_h5 \
+compile_mainline_atf -b sun50i_a64                  \
+  && compile_mainline_crust -b ${BOARD}             \
+  && compile_mainline_u-boot -a aarch64 -b ${BOARD} \
   && sunxi_bootloader -c -s
 
 exit $?

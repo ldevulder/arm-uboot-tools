@@ -3,14 +3,14 @@
 # Usage function
 function usage() {
   cat >&2 <<EOF
-${SH_FILE} is used to compile official ATF firmware
+${SH_FILE} is used to compile official CRUST firmware
 
 Usage: ${SH_FILE} -b board [-h] [-d dir] [-s dir]
 
 Where:
   -b	name of the board to configure (for example: sun50i_a64) 
-  -d    compile firmware in debug mode
-  -s	ATF source directory
+  -d    compile firmware in debug/verbose mode
+  -s	CRUST source directory
   -h    this help page
 EOF
   exit 0
@@ -33,11 +33,11 @@ function copy() {
 
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
-typeset -r TMPFS=/dev/shm/atf-tmp
+typeset -r TMPFS=/dev/shm/crust-tmp
 typeset -rx ARCH=arm
-typeset -rx CROSS_COMPILE=aarch64-elf-
-typeset -x ATF_DIR=~/git/github/arm-trusted-firmware
-typeset -x PATH=~/cross-compile/aarch64/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-elf/bin:$PATH
+typeset -rx CROSS_COMPILE=or1k-linux-musl-
+typeset -x CRUST_DIR=~/git/github/crust
+typeset -x PATH=~/cross-compile/or1k/or1k-linux-musl/bin:$PATH
 typeset DEBUG=0
 typeset RELEASE=release
 typeset BOARD
@@ -50,7 +50,7 @@ while getopts "b:ds:h" ARG; do
     d) DEBUG=1
        RELEASE=debug
        ;;
-    s) ATF_DIR=${OPTARG}
+    s) CRUST_DIR=${OPTARG}
        ;;
     h|*) usage
        ;;
@@ -70,24 +70,25 @@ mkdir -p ${TMPFS} \
   || error "Cannot create temporary directory ${TMPFS}!"
 
 # Copy ATF source in the tmpfs directory
-rsync -aq ${ATF_DIR}/ ${TMPFS} \
-  || error "Cannot copy ${ATF_DIR}/* in ${TMPFS}!"
+rsync -aq ${CRUST_DIR}/ ${TMPFS} \
+  || error "Cannot copy ${CRUST_DIR}/* in ${TMPFS}!"
 
-# Cleanup ATF build
-echo "- Cleaning ATF build directory..."
+# Cleanup CRUST build
+echo "- Cleaning CRUST build directory..."
 cd ${TMPFS}
 make clean && make distclean
 
-# Compile ATF
-echo "- Compiling ATF for ${BOARD} board..."
-make PLAT=${BOARD} DEBUG=${DEBUG} bl31 \
-  || error "Failed to compile ATF!"
+# Workaround for lex/flex
+sed -i "s/\(^LEX[[:blank:]]*=[[:blank:]]*\)lex/\1flex/" Makefile
+
+# Compile CRUST
+echo "- Compiling CRUST for ${BOARD} board..."
+(make ${BOARD}_defconfig && make scp) \
+  || error "Failed to compile CRUST!"
 
 # Copy compiled bl31.bin
-echo "- Copying BL31 (ATF firmware) file..."
-[[ "${BOARD}" =~ "rk3" ]]                                                \
-  && copy build/${BOARD}/${RELEASE}/bl31/bl31.elf ${OLDPWD}/atf-bl31.elf \
-  || copy build/${BOARD}/${RELEASE}/bl31.bin ${OLDPWD}/atf-bl31.bin
+echo "- Copying CRUST firmware file..."
+copy build/scp/scp.bin ${OLDPWD}/
 
 # We need to go back into original directory
 cd ${OLDPWD}

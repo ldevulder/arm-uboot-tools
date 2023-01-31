@@ -34,7 +34,7 @@ shift $((OPTIND-1))
 
 # Compile U-Boot for ROC-RK3328-CC board and burn it on /dev/mmcblk0
 (( ATF_FW )) && compile_mainline_atf -b rk3328
-compile_mainline_u-boot -a arm64 -b ${BOARD} \
+compile_mainline_u-boot -a aarch64 -b ${BOARD} \
   && rk_bootloader -b ${BOARD} -s ${RK_BL_OPTS}
 
 exit $?
