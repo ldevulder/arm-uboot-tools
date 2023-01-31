@@ -96,9 +96,9 @@ shift $((OPTIND-1))
 
 # Export needed variables
 export ARCH=arm
-export CROSS_COMPILE=aarch64-none-elf-
-export CROSS_COMPILE_T32=arm-none-eabi-
-export PATH=~/cross-compile/aarch64/gcc-linaro-aarch64-none-elf-4.8-2013.11_linux/bin:~/cross-compile/aarch64/gcc-arm-none-eabi-6-2017-q2-update/bin:$PATH
+export CROSS_COMPILE=aarch64-elf-
+export CROSS_COMPILE_T32=arm-eabi-
+export PATH=~/cross-compile/aarch64/gcc-linaro-4.9.4-2017.01-x86_64_aarch64-elf/bin:~/cross-compile/aarch64/gcc-linaro-4.9.4-2017.01-x86_64_arm-eabi/bin:~/cross-compile/aarch64/gcc-linaro-aarch64-none-elf-4.8-2013.11_linux/bin:$PATH
 
 # Remove old TMPFS and re-create it
 echo "- Cleaning/Creating ${TMPFS} directory..."
@@ -108,7 +108,6 @@ mkdir -p ${TMPFS} \
   || error "Cannot create temporary directory ${TMPFS}!"
 
 # Copy u-boot source in the tmpfs directory
-#rsync -aq --exclude=.git ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
 rsync -aq ${AMLOGIC_U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${AMLOGIC_U_BOOT_DIR}/* in ${TMPFS}!"
 
@@ -144,6 +143,9 @@ rm -rf ${FIPDIR} \
 mkdir -p ${FIPDIR} \
   || error "Cannot create FIP directory ${FIPDIR}!"
 
+# Create directory if missing
+mkdir -p ${BLOB_FIPDIR}
+
 # Copy compiled u-boot.bin as BL3-3
 echo "- Copying BL3-3 file..."
 (( COPY_UBOOT_BL33 ))                                 \
@@ -152,25 +154,58 @@ echo "- Copying BL3-3 file..."
 
 # Copy needed binary blob files
 echo "- Copying binary blob files..."
-copy ${BLOB_FIPDIR}/gxl/bl2.bin ${FIPDIR}
-copy ${BLOB_FIPDIR}/gxl/acs.bin ${FIPDIR}
-copy ${BLOB_FIPDIR}/gxl/bl21.bin ${FIPDIR}
-copy ${BLOB_FIPDIR}/gxl/bl30.bin ${FIPDIR}
-copy ${BLOB_FIPDIR}/gxl/bl301.bin ${FIPDIR}
+if [[ "${BOARD}" == "libretech_ac" ]]; then
+  copy ${TMPFS}/build/scp_task/bl301.bin ${FIPDIR}
+  copy ${TMPFS}/build/board/amlogic/${BOARD}/firmware/bl21.bin ${FIPDIR}
+  copy ${TMPFS}/build/board/amlogic/${BOARD}/firmware/acs.bin ${FIPDIR}
+
+  for FW in bl2.bin bl30.bin bl31.img; do
+    curl -sfL https://raw.githubusercontent.com/LibreELEC/amlogic-boot-fip/master/lafrite/${FW} \
+      -o ${FIPDIR}/${FW}
+  done
+else
+  copy ${BLOB_FIPDIR}/gxl/bl2.bin ${FIPDIR}
+  copy ${BLOB_FIPDIR}/gxl/acs.bin ${FIPDIR}
+  copy ${BLOB_FIPDIR}/gxl/bl21.bin ${FIPDIR}
+  copy ${BLOB_FIPDIR}/gxl/bl30.bin ${FIPDIR}
+  copy ${BLOB_FIPDIR}/gxl/bl301.bin ${FIPDIR}
+fi
+
 if (( ATF_FW )); then
   echo "- Using ATF BL31..."
   copy atf-bl31.bin ${FIPDIR}/bl31.img \
     || error "Error while copying ATF firmware!"
 else
   echo "- Using Amlogic BL31..."
-  copy ${BLOB_FIPDIR}/gxl/bl31.img ${FIPDIR}
+  FW=bl31.img
+  if [[ "${BOARD}" == "libretech_ac" ]]; then
+    curl -sfL https://raw.githubusercontent.com/LibreELEC/amlogic-boot-fip/master/lafrite/${FW} \
+      -o ${FIPDIR}/${FW}
+  else
+    copy ${BLOB_FIPDIR}/gxl/${FW} ${FIPDIR}
+  fi
 fi
+
+echo "- Copying scripts..."
+case ${BOARD} in
+  libretech_ac)
+    CODE_NAME=lafrite
+    ;;
+  libretech_cc)
+    CODE_NAME=lepotato
+    ;;
+esac
+for SCRIPT in acs_tool.py blx_fix.sh; do
+  curl -sfL https://raw.githubusercontent.com/LibreELEC/amlogic-boot-fip/master/${CODE_NAME}/${SCRIPT} \
+    -o ${BLOB_FIPDIR}/${SCRIPT}
+  chmod +x ${BLOB_FIPDIR}/${SCRIPT}
+done
 
 # Create BL3-0
 echo "- Creating BL3-0..."
 ${BLOB_FIPDIR}/blx_fix.sh  \
   ${FIPDIR}/bl30.bin       \
-  zero_tmp                 \
+  ${FIPDIR}/zero_tmp       \
   ${FIPDIR}/bl30_zero.bin  \
   ${FIPDIR}/bl301.bin      \
   ${FIPDIR}/bl301_zero.bin \
@@ -179,13 +214,13 @@ ${BLOB_FIPDIR}/blx_fix.sh  \
 
 # Create BL2-ACS file
 echo "- Creating BL2-ACS file..."
-python ${BLOB_FIPDIR}/acs_tool.pyc ${FIPDIR}/bl2.bin ${FIPDIR}/bl2_acs.bin ${FIPDIR}/acs.bin 0
+python ${BLOB_FIPDIR}/acs_tool.py ${FIPDIR}/bl2.bin ${FIPDIR}/bl2_acs.bin ${FIPDIR}/acs.bin 0
 
 # Create BL2 file
 echo "- Creating BL2 file..."
 ${BLOB_FIPDIR}/blx_fix.sh  \
   ${FIPDIR}/bl2_acs.bin    \
-  zero_tmp                 \
+  ${FIPDIR}/zero_tmp       \
   ${FIPDIR}/bl2_zero.bin   \
   ${FIPDIR}/bl21.bin       \
   ${FIPDIR}/bl21_zero.bin  \
