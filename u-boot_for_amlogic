@@ -63,19 +63,21 @@ shift $((OPTIND-1))
 case ${BOARD} in
   khadas-vim)
     (( COMPILE_AMLOGIC ))                                \
-      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic: \
+      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic:khadas-vims-v2015.01 \
       || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/vim1
     AMLOGIC_U_BOOT_BOARD="kvim"
     ATF_FW_BOARD="gxl"
     ;;
   khadas-vim2)
     (( COMPILE_AMLOGIC ))                                \
-      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic: \
+      && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic:khadas-vims-v2015.01 \
       || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/vim2
     AMLOGIC_U_BOOT_BOARD="kvim2"
     ATF_FW_BOARD="gxm"
     ;;
   libretech-ac|libretech-cc)
+    # && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-amlogic:khadas-vims-v2019.01 \
+    # AMLOGIC_U_BOOT_BOARD="kvim"
     (( COMPILE_AMLOGIC ))                                         \
       && AMLOGIC_U_BOOT_DIR=~/git/github/u-boot-baylibre:${BOARD} \
       || AMLOGIC_U_BOOT_DIR=~/firmware/amlogic-binary-blob/${BOARD}
