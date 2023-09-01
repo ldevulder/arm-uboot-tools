@@ -172,14 +172,21 @@ for FW in bl2.bin bl30.bin; do
   if [[ "${BOARD}" =~ libretech_ac|libretech_cc ]]; then
     curl -sfL https://raw.githubusercontent.com/LibreELEC/amlogic-boot-fip/master/${CODE_NAME}/${FW} \
       -o ${FIPDIR}/${FW}
+  elif [[ "${BOARD}" =~ kvim|kvim2 ]]; then
+    copy ~/firmware/amlogic-binary-blob/${FW} ${FIPDIR}
   else
-    copy ${BLOB_FIPDIR}/gxl/bl2.bin ${FIPDIR}
-    copy ${BLOB_FIPDIR}/gxl/bl30.bin ${FIPDIR}
+    copy ${BLOB_FIPDIR}/gxl/${FW}.bin ${FIPDIR}
   fi
 done
-copy ${TMPFS}/build/scp_task/bl301.bin ${FIPDIR}
-copy ${TMPFS}/build/board/${FW_DIR}/firmware/bl21.bin ${FIPDIR}
-copy ${TMPFS}/build/board/${FW_DIR}/firmware/acs.bin ${FIPDIR}
+if (( COMPILE_AMLOGIC )); then
+  copy ${TMPFS}/build/board/${FW_DIR}/firmware/acs.bin ${FIPDIR}
+  copy ${TMPFS}/build/board/${FW_DIR}/firmware/bl21.bin ${FIPDIR}
+  copy ${TMPFS}/build/scp_task/bl301.bin ${FIPDIR}
+else
+  copy ${TMPFS}/fip/gxl/acs.bin ${FIPDIR}
+  copy ${TMPFS}/fip/gxl/bl21.bin ${FIPDIR}
+  copy ${TMPFS}/fip/gxl/bl301.bin ${FIPDIR}
+fi
 
 if (( ATF_FW )); then
   echo "- Using ATF BL31..."
