@@ -38,7 +38,7 @@ typeset -x U_BOOT_DIR=~/git/github/u-boot
 typeset -x ATF_FW_FILE=$(ls ${PWD}/atf-bl31.* 2>/dev/null)
 typeset -x CRUST_FW_FILE=$(ls ${PWD}/scp.* 2>/dev/null)
 typeset -x SCP=/dev/null
-typeset -x ARCH BOARD
+typeset -x ARCH BOARD U_BOOT_BRANCH
 
 # Get options
 while getopts "a:b:s:h" ARG; do
@@ -71,15 +71,18 @@ case ${ARCH} in
     ;;
   riscv64)
     # Current version uses cross-compiler provided by the OS
-    #typeset -x CROSS_COMPILE=${ARCH}-unknown-elf-
-    #typeset -x PATH=~/cross-compile/${ARCH}/gcc-riscv-9.2.0-2020.04-x86_64_${ARCH}-unknown-gnu/bin:$PATH
-    #typeset -x LD_LIBRARY_PATH=~/cross-compile/${ARCH}/gcc-riscv-9.2.0-2020.04-x86_64_${ARCH}-unknown-gnu/lib:$LD_LIBRARY_PATH
-    : TODO
+    # Packages cross-riscv64-elf-gcc* or cross-riscv64-gcc* and cross-riscv64-binutils
     ;;
   *)
     error "Unknown architecture '${ARCH}'!\n"
     ;;
 esac
+
+# Extract git branch if provided
+if [[ "${U_BOOT_DIR#*:}" != "${U_BOOT_DIR}" ]]; then
+  U_BOOT_BRANCH=${U_BOOT_DIR#*:}
+  U_BOOT_DIR=${U_BOOT_DIR%:*}
+fi
 
 # Is ATF firmware detected?
 if [[ -s "${ATF_FW_FILE}" ]]; then
@@ -104,6 +107,12 @@ mkdir -p ${TMPFS} \
 # Copy u-boot source in the tmpfs directory
 rsync -aq ${U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${U_BOOT_DIR}/* in ${TMPFS}!"
+
+# Change branch if needed
+if [[ -n "${U_BOOT_BRANCH}" ]]; then
+  echo "- Checking out branch ${U_BOOT_BRANCH}..."
+  git checkout ${U_BOOT_BRANCH}
+fi
 
 # Cleanup U-Boot build
 echo "- Cleaning U-Boot build directory..."

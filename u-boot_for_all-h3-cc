@@ -9,4 +9,5 @@ compile_mainline_atf -b sun50i_a64                  \
   && compile_mainline_u-boot -a aarch64 -b ${BOARD} \
   && sunxi_bootloader -c -s
 
+# Clean exit
 exit $?

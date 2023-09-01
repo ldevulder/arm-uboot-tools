@@ -1,0 +1,140 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+  cat >&2 <<EOF
+${SH_FILE} is used to compile official OpenSBI firmware
+
+Usage: ${SH_FILE} -b board [-c] [-h] [-d] [-s dir]
+
+Where:
+  -b    name of the board to configure
+  -c    copy firmware file
+  -d    compile firmware in debug mode
+  -s	OpenSBI source directory
+  -h    this help page
+
+Currently supported boards are: beaglev, starlight, visionfive and visionfive2
+EOF
+  exit 0
+}
+
+# Error function
+function error() {
+  echo -e "$@" >&2
+  exit 1
+}
+
+# Copy/Check function
+function copy() {
+  typeset -r FILE=$1
+  typeset -r DEST=$2
+
+  cp ${FILE} ${DEST} >/dev/null 2>&1 \
+    || error "Error while copying file ${FILE} to ${DEST}!"
+}
+
+# Variable(s)
+typeset -r SH_FILE=${0##*/}
+typeset -r TMPFS=/dev/shm/opensbi-tmp
+typeset -r U_BOOT_TMP=/dev/shm/u-boot-tmp
+typeset -rx ARCH=riscv64
+typeset -rx CROSS_COMPILE=${ARCH}-elf-
+typeset -x SRC_DIR=~/git/github/beaglev/opensbi
+typeset FW_FILE="${TMPFS}/build/platform/generic/firmware/fw_payload.bin"
+typeset BOARD COPY DEBUG PAYLOAD_FILE FDT_FILE OPTS
+
+# Get options
+while getopts "b:cds:h" ARG; do
+  case ${ARG} in
+    b) BOARD=${OPTARG}
+       ;;
+    c) COPY=1
+       ;;
+    d) DEBUG=1
+       ;;
+    s) SRC_DIR=${OPTARG}
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Board model must be filled!
+[[ -z "${BOARD}" ]] \
+  && error "Board model must be filled!"
+
+case ${BOARD} in
+  beaglev|starlight)
+    PAYLOAD_FILE=${U_BOOT_TMP}/u-boot.bin
+    FDT_FILE=${U_BOOT_TMP}/arch/riscv/dts/jh7100-beaglev-starlight.dtb
+    ;;
+  visionfive)
+    PAYLOAD_FILE=${U_BOOT_TMP}/u-boot.bin
+    FDT_FILE=${U_BOOT_TMP}/arch/riscv/dts/jh7100-visionfive.dtb
+    ;;
+  visionfive2)
+    PAYLOAD_FILE=${U_BOOT_TMP}/u-boot.bin
+    FDT_FILE=${U_BOOT_TMP}/arch/riscv/dts/starfive_visionfive2.dtb
+    OPTS="FW_TEXT_START=0x40000000"
+    ;;
+esac
+
+# Extract git branch if provided
+if [[ "${SRC_DIR#*:}" != "${SRC_DIR}" ]]; then
+  SRC_BRANCH=${SRC_DIR#*:}
+  SRC_DIR=${SRC_DIR%:*}
+fi
+
+# Remove old TMPFS and re-create it
+echo "- Cleaning/Creating ${TMPFS} directory..."
+rm -rf ${TMPFS} \
+  || error "Cannot clean temporary directory ${TMPFS}!"
+mkdir -p ${TMPFS} \
+  || error "Cannot create temporary directory ${TMPFS}!"
+
+# Copy source in the tmpfs directory
+rsync -aq ${SRC_DIR}/ ${TMPFS} \
+  || error "Cannot copy ${SRC_DIR}/* in ${TMPFS}!"
+
+# Change branch if needed
+if [[ -n "${SRC_BRANCH}" ]]; then
+  echo "- Checking out branch ${SRC_BRANCH}..."
+  git checkout ${SRC_BRANCH}
+fi
+
+# Cleanup build
+echo "- Cleaning build directory..."
+cd ${TMPFS}
+make clean && make distclean
+
+# Compile OpenSBI
+echo "- Compiling OpenSBI..."
+make PLATFORM=generic DEBUG=${DEBUG} FW_PAYLOAD_PATH=${PAYLOAD_FILE} FW_FDT_PATH=${FDT_FILE} ${OPTS} \
+  || error "Failed to compile OpenSBI!"
+
+# Do specific stuff depending on the board
+case ${BOARD} in
+  beaglev|starlight|visionfive)
+    # fsz.sh is needed for these boards
+    which fsz.sh >/dev/null 2>&1 || error "fsz.sh not found!"
+
+    # Fix firmware file
+    fsz.sh ${FW_FILE} || error "Failed to fix ${FW_FILE}!"
+    FW_FILE=${FW_FILE}.out
+    ;;
+esac
+
+# Copy firmware file(s) locally if asked
+if (( COPY )); then
+  for FILE in ${PAYLOAD_FILE} ${FDT_FILE} ${FW_FILE}; do
+    cp -f ${FILE} ${OLDPWD} >/dev/null 2>&1 || error "Failed to copy ${FILE}!"
+  done
+fi
+
+# We need to go back into original directory
+cd ${OLDPWD}
+
+# Clean exit
+exit 0

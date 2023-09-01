@@ -1,0 +1,74 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+  cat >&2 <<EOF
+${SH_FILE} is used to compile, generate and burn OpenSBI/U-Boot for StarFive RISC-V SoC
+
+Usage: ${SH_FILE} -b board [-c] [-d] [-h]
+
+Where:
+  -b    name of the board to configure
+  -c    copy firmware file
+  -d    compile firmware in debug mode (when allowed)
+  -h    this help page
+
+Currently supported boards are: beaglev, starlight, visionfive and visionfive2
+EOF
+  exit 0
+}
+
+# Error function
+function error() {
+  echo -e "$@" >&2
+  exit 1
+}
+
+# Variable(s)
+typeset -r SH_FILE=${0##*/}
+typeset -r U_BOOT_TMP=/dev/shm/u-boot-tmp
+typeset BOARD COPY DEBUG U_BOOT_BOARD U_BOOT_DIR FSZ
+
+# Get options
+while getopts "b:cdh" ARG; do
+  case ${ARG} in
+    b) BOARD=${OPTARG}
+       ;;
+    c) COPY="-c"
+       ;;
+    d) DEBUG="-d"
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Board model must be filled!
+[[ -z "${BOARD}" ]] \
+  && error "Board model must be filled!"
+
+case ${BOARD} in
+  beaglev|starlight)
+    U_BOOT_DIR=~/git/github/beaglev/starfive-tech_u-boot:JH7100_upstream_devel
+    U_BOOT_BOARD=starfive_jh7100_starlight_smode
+    OPENSBI_DIR=~/git/github/beaglev/opensbi
+    ;;
+  visionfive)
+    U_BOOT_DIR=~/git/github/beaglev/starfive-tech_u-boot:JH7110_VisionFive_devel
+    U_BOOT_BOARD=starfive_jh7100_visionfive_smode
+    OPENSBI_DIR=~/git/github/beaglev/opensbi
+    ;;
+  visionfive2)
+    U_BOOT_DIR=~/git/github/beaglev/starfive-tech_u-boot:JH7110_VisionFive2_devel
+    U_BOOT_BOARD=starfive_visionfive2
+    OPENSBI_DIR=~/git/github/beaglev/starfive-tech_opensbi:JH7110_VisionFive2_devel
+    ;;
+esac
+
+# Compile U-Boot and OpenSBI
+compile_mainline_u-boot -a riscv64 -b ${U_BOOT_BOARD} -s ${U_BOOT_DIR} \
+  && compile_mainline_opensbi ${DEBUG} ${COPY} -b ${BOARD} -s ${OPENSBI_DIR}
+
+# Clean exit
+exit $?

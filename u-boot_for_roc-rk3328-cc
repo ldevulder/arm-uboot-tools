@@ -37,4 +37,5 @@ shift $((OPTIND-1))
 compile_mainline_u-boot -a aarch64 -b ${BOARD} \
   && rk_bootloader -b ${BOARD} -s ${RK_BL_OPTS}
 
+# Clean exit
 exit $?

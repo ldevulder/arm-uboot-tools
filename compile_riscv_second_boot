@@ -1,0 +1,84 @@
+#!/bin/sh
+
+# Usage function
+function usage() {
+  cat >&2 <<EOF
+${SH_FILE} is used to compile StarFive secondBoot firmware
+
+Usage: ${SH_FILE} [-c] [-h]
+
+Where:
+  -c    copy firmware file
+  -h    this help page
+EOF
+  exit 0
+}
+
+# Error function
+function error() {
+  echo -e "$@" >&2
+  exit 1
+}
+
+# Copy/Check function
+function copy() {
+  typeset -r FILE=$1
+  typeset -r DEST=$2
+
+  cp ${FILE} ${DEST} >/dev/null 2>&1 \
+    || error "Error while copying file ${FILE} to ${DEST}!"
+}
+
+# Variable(s)
+typeset -r ARCH=riscv64
+typeset -r SH_FILE=${0##*/}
+typeset -r TMPFS=/dev/shm/second-boot-tmp
+typeset -r FW_FILE="${TMPFS}/build/bootloader-JH7100-$(date +%y%m%d).bin.out"
+typeset -x SRC_DIR=~/git/github/beaglev/JH7100_secondBoot
+typeset COPY
+
+# Get options
+while getopts "ch" ARG; do
+  case ${ARG} in
+    c) COPY=1
+       ;;
+    h|*) usage
+       ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# Define some vars according to the arch
+typeset -x CROSS_COMPILE=${ARCH}-unknown-elf-
+typeset -x PATH=~/cross-compile/riscv64/riscv64-unknown-elf-toolchain-10.2.0-2020.12.8-x86_64-linux-ubuntu14/bin:${PATH}
+
+# Remove old TMPFS and re-create it
+echo "- Cleaning/Creating ${TMPFS} directory..."
+rm -rf ${TMPFS} \
+  || error "Cannot clean temporary directory ${TMPFS}!"
+mkdir -p ${TMPFS} \
+  || error "Cannot create temporary directory ${TMPFS}!"
+
+# Copy source in the tmpfs directory
+rsync -aq ${SRC_DIR}/ ${TMPFS} \
+  || error "Cannot copy ${SRC_DIR}/* in ${TMPFS}!"
+
+# Cleanup build
+echo "- Cleaning build directory..."
+cd ${TMPFS}/build
+make clean && make distclean
+
+# Compile
+echo "- Compile DDR Init..."
+make || error "Failed to compile U-Boot!"
+
+# Copy firmware file locally if asked
+if (( COPY )); then
+  cp -f ${FW_FILE} ${OLDPWD} >/dev/null 2>&1 || error "Failed to copy ${FW_FILE}!"
+fi
+
+# We need to go back into original directory
+cd ${OLDPWD}
+
+# Clean exit
+exit 0

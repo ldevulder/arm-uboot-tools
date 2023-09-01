@@ -5,11 +5,12 @@ function usage() {
   cat >&2 <<EOF
 ${SH_FILE} is used to compile, generate and burn official U-Boot for Amlogic GXL/GXM SoC
 
-Usage: ${SH_FILE} [a-] -b board [-g] [-h] [-n]
+Usage: ${SH_FILE} [a-] -b board [-d] [-g] [-h] [-n]
 
 Where:
   -a    use official ARM ATF fimrware
   -b    name of the board to configure
+  -d    compile firmware in debug mode (when allowed)
   -g    use gxlimg to generate image instead of aml_encrypt_gxl
   -h    this help page
   -n    don't compile Amlogic U-Boot (use pre-compiled binary blob)
@@ -30,19 +31,24 @@ typeset -r SH_FILE=${0##*/}
 typeset -i ATF_FW=0
 typeset -i USE_GXLIMG=0
 typeset -i COMPILE_AMLOGIC=1
+typeset -i DEBUG=0
 typeset GENERATE_OPTS="-c -s"
+typeset GENERATE_ATF_OPTS=""
 typeset AMLOGIC_U_BOOT_DIR
 typeset AMLOGIC_U_BOOT_BOARD
 typeset ATF_FW_BOARD
 typeset BOARD
 
 # Get options
-while getopts "ab:ghn" ARG; do
+while getopts "ab:dghn" ARG; do
   case ${ARG} in
     a) ATF_FW=1
        GENERATE_OPTS+=" -a"
        ;;
     b) BOARD=${OPTARG}
+       ;;
+    d) DEBUG=1
+       GENERATE_ATF_OPTS+=" -d"
        ;;
     g) USE_GXLIMG=1
        GENERATE_OPTS+=" -g"
@@ -87,10 +93,11 @@ case ${BOARD} in
 esac
 
 # Compile official ARM Trusted Firmware if needed
-(( ATF_FW )) && compile_mainline_atf -b ${ATF_FW_BOARD}
+(( ATF_FW )) && compile_mainline_atf -b ${ATF_FW_BOARD} ${GENERATE_ATF_OPTS}
 
 # Compile official U-Boot for Amlogic based board and burn it on /dev/mmcblk0
 compile_mainline_u-boot -a aarch64 -b ${BOARD} \
   && generate_gxl_gxm_bootloader -u ${AMLOGIC_U_BOOT_DIR} -b ${AMLOGIC_U_BOOT_BOARD} ${GENERATE_OPTS}
 
+# Clean exit
 exit $?
