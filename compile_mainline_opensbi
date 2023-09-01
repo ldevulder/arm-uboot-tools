@@ -14,7 +14,7 @@ Where:
   -s	OpenSBI source directory
   -h    this help page
 
-Currently supported boards are: beaglev, starlight, visionfive and visionfive2
+Currently supported boards are: beaglev/starlight, visionfive and visionfive2
 EOF
   exit 0
 }
@@ -34,15 +34,24 @@ function copy() {
     || error "Error while copying file ${FILE} to ${DEST}!"
 }
 
+# Check binary function
+function checkBin() {
+  typeset -r BIN=$1
+
+  which ${BIN} >/dev/null 2>&1 \
+    || error "${BIN} not found!"
+}
+
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
 typeset -r TMPFS=/dev/shm/opensbi-tmp
 typeset -r U_BOOT_TMP=/dev/shm/u-boot-tmp
+typeset -r U_BOOT_FIT=~/git/github/starfive/Tools/uboot_its/visionfive2-uboot-fit-image.its
 typeset -rx ARCH=riscv64
 typeset -rx CROSS_COMPILE=${ARCH}-elf-
-typeset -x SRC_DIR=~/git/github/beaglev/opensbi
-typeset FW_FILE="${TMPFS}/build/platform/generic/firmware/fw_payload.bin"
-typeset BOARD COPY DEBUG PAYLOAD_FILE FDT_FILE OPTS
+typeset -x SRC_DIR=~/git/github/starfive/opensbi
+typeset FW_FILE=${TMPFS}/build/platform/generic/firmware/fw_payload.bin
+typeset BOARD COPY DEBUG PAYLOAD_FILE FDT_FILE SPL_FILE OPTS
 
 # Get options
 while getopts "b:cds:h" ARG; do
@@ -77,6 +86,7 @@ case ${BOARD} in
   visionfive2)
     PAYLOAD_FILE=${U_BOOT_TMP}/u-boot.bin
     FDT_FILE=${U_BOOT_TMP}/arch/riscv/dts/starfive_visionfive2.dtb
+    SPL_FILE=${U_BOOT_TMP}/spl/u-boot-spl.bin
     OPTS="FW_TEXT_START=0x40000000"
     ;;
 esac
@@ -98,6 +108,9 @@ mkdir -p ${TMPFS} \
 rsync -aq ${SRC_DIR}/ ${TMPFS} \
   || error "Cannot copy ${SRC_DIR}/* in ${TMPFS}!"
 
+# Go to build directory
+cd ${TMPFS}
+
 # Change branch if needed
 if [[ -n "${SRC_BRANCH}" ]]; then
   echo "- Checking out branch ${SRC_BRANCH}..."
@@ -106,7 +119,6 @@ fi
 
 # Cleanup build
 echo "- Cleaning build directory..."
-cd ${TMPFS}
 make clean && make distclean
 
 # Compile OpenSBI
@@ -118,18 +130,38 @@ make PLATFORM=generic DEBUG=${DEBUG} FW_PAYLOAD_PATH=${PAYLOAD_FILE} FW_FDT_PATH
 case ${BOARD} in
   beaglev|starlight|visionfive)
     # fsz.sh is needed for these boards
-    which fsz.sh >/dev/null 2>&1 || error "fsz.sh not found!"
+    checkBin fsz.sh
 
     # Fix firmware file
     fsz.sh ${FW_FILE} || error "Failed to fix ${FW_FILE}!"
     FW_FILE=${FW_FILE}.out
     ;;
+  visionfive2)
+    checkBin spl_tool
+
+    # Create SPL file
+    spl_tool -c -f ${SPL_FILE}
+    SPL_FILE=${SPL_FILE}.normal.out
+
+    # Copy OpenSBI firmware/file locally
+    copy ${FW_FILE} ${PWD}
+    copy ${U_BOOT_FIT} ${PWD}
+
+    # Generate new payload file
+    FW_FILE=${BOARD}_fw_payload.img
+    ${U_BOOT_TMP}/tools/mkimage \
+      -A riscv                  \
+      -f ${U_BOOT_FIT##*/}      \
+      -T firmware               \
+      -O u-boot                 \
+      ${FW_FILE} || error "Failed to generate new ${FW_FILE}!"
+    ;;
 esac
 
 # Copy firmware file(s) locally if asked
 if (( COPY )); then
-  for FILE in ${PAYLOAD_FILE} ${FDT_FILE} ${FW_FILE}; do
-    cp -f ${FILE} ${OLDPWD} >/dev/null 2>&1 || error "Failed to copy ${FILE}!"
+  for FILE in ${PAYLOAD_FILE} ${FDT_FILE} ${SPL_FILE} ${FW_FILE}; do
+    copy ${FILE} ${OLDPWD}
   done
 fi
 

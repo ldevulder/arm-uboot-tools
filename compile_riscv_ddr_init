@@ -34,7 +34,7 @@ typeset -r ARCH=riscv64
 typeset -r SH_FILE=${0##*/}
 typeset -r TMPFS=/dev/shm/ddr-init-tmp
 typeset -r FW_FILE="${TMPFS}/build/ddrinit-2133-$(date +%y%m%d).bin.out"
-typeset -x SRC_DIR=~/git/github/beaglev/JH7100_ddrinit
+typeset -x SRC_DIR=~/git/github/starfive/JH7100_ddrinit
 typeset COPY
 
 # Get options
@@ -73,9 +73,7 @@ echo "- Compile DDR Init..."
 make || error "Failed to compile U-Boot!"
 
 # Copy firmware file locally if asked
-if (( COPY )); then
-  cp -f ${FW_FILE} ${OLDPWD} >/dev/null 2>&1 || error "Failed to copy ${FW_FILE}!"
-fi
+(( COPY )) && copy ${FW_FILE} ${OLDPWD}
 
 # We need to go back into original directory
 cd ${OLDPWD}

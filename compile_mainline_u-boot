@@ -108,6 +108,9 @@ mkdir -p ${TMPFS} \
 rsync -aq ${U_BOOT_DIR}/ ${TMPFS} \
   || error "Cannot copy ${U_BOOT_DIR}/* in ${TMPFS}!"
 
+# Go to build directory
+cd ${TMPFS}
+
 # Change branch if needed
 if [[ -n "${U_BOOT_BRANCH}" ]]; then
   echo "- Checking out branch ${U_BOOT_BRANCH}..."
@@ -116,7 +119,6 @@ fi
 
 # Cleanup U-Boot build
 echo "- Cleaning U-Boot build directory..."
-cd ${TMPFS}
 make clean && make mrproper && make distclean
 
 # Compile U-Boot

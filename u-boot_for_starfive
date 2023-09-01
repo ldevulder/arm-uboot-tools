@@ -13,7 +13,7 @@ Where:
   -d    compile firmware in debug mode (when allowed)
   -h    this help page
 
-Currently supported boards are: beaglev, starlight, visionfive and visionfive2
+Currently supported boards are: beaglev/starlight, visionfive and visionfive2
 EOF
   exit 0
 }
@@ -50,19 +50,19 @@ shift $((OPTIND-1))
 
 case ${BOARD} in
   beaglev|starlight)
-    U_BOOT_DIR=~/git/github/beaglev/starfive-tech_u-boot:JH7100_upstream_devel
+    U_BOOT_DIR=~/git/github/starfive/starfive-tech_u-boot:JH7100_upstream_devel
     U_BOOT_BOARD=starfive_jh7100_starlight_smode
-    OPENSBI_DIR=~/git/github/beaglev/opensbi
+    OPENSBI_DIR=~/git/github/starfive/opensbi
     ;;
   visionfive)
-    U_BOOT_DIR=~/git/github/beaglev/starfive-tech_u-boot:JH7110_VisionFive_devel
+    U_BOOT_DIR=~/git/github/starfive/starfive-tech_u-boot:JH7110_VisionFive_devel
     U_BOOT_BOARD=starfive_jh7100_visionfive_smode
-    OPENSBI_DIR=~/git/github/beaglev/opensbi
+    OPENSBI_DIR=~/git/github/starfive/opensbi
     ;;
   visionfive2)
-    U_BOOT_DIR=~/git/github/beaglev/starfive-tech_u-boot:JH7110_VisionFive2_devel
+    U_BOOT_DIR=~/git/github/starfive/starfive-tech_u-boot:JH7110_VisionFive2_devel
     U_BOOT_BOARD=starfive_visionfive2
-    OPENSBI_DIR=~/git/github/beaglev/starfive-tech_opensbi:JH7110_VisionFive2_devel
+    OPENSBI_DIR=~/git/github/starfive/starfive-tech_opensbi:JH7110_VisionFive2_devel
     ;;
 esac
 
