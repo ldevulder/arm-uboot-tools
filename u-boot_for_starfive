@@ -55,7 +55,7 @@ case ${BOARD} in
     OPENSBI_DIR=~/git/github/starfive/opensbi
     ;;
   visionfive)
-    U_BOOT_DIR=~/git/github/starfive/starfive-tech_u-boot:JH7110_VisionFive_devel
+    U_BOOT_DIR=~/git/github/starfive/starfive-tech_u-boot:JH7100_VisionFive_devel
     U_BOOT_BOARD=starfive_jh7100_visionfive_smode
     OPENSBI_DIR=~/git/github/starfive/opensbi
     ;;
@@ -63,6 +63,14 @@ case ${BOARD} in
     U_BOOT_DIR=~/git/github/starfive/starfive-tech_u-boot:JH7110_VisionFive2_devel
     U_BOOT_BOARD=starfive_visionfive2
     OPENSBI_DIR=~/git/github/starfive/starfive-tech_opensbi:JH7110_VisionFive2_devel
+    ;;
+esac
+
+# Compile DDRInit and SecondBoot if needed
+case ${BOARD} in
+  beaglev|starlight|visionfive)
+    compile_riscv_ddr_init ${COPY} \
+      && compile_riscv_second_boot ${COPY}
     ;;
 esac
 
