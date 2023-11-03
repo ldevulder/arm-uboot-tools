@@ -3,7 +3,7 @@
 # Usage function
 function usage() {
   cat >&2 <<EOF
-${SH_FILE} is used to generate/burn official U-Boot binary for Allwinner SoC
+${SH_FILE} is used to generate/burn official U-Boot firmware for Allwinner SoC
 
 Usage: ${SH_FILE} [-c] [-h] [-s]
 
