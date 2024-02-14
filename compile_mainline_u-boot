@@ -72,9 +72,19 @@ case ${ARCH} in
   riscv64)
     # Current version uses cross-compiler provided by the OS
     # Packages cross-riscv64-elf-gcc* or cross-riscv64-gcc* and cross-riscv64-binutils
+    CROSS_COMPILE=${ARCH}-suse-linux-
     ;;
   *)
     error "Unknown architecture '${ARCH}'!\n"
+    ;;
+esac
+
+# Define some options according to the board
+case ${BOARD} in
+  visionfive2)
+    echo "- OpenSBI Firmware detected!"
+    BOARD=starfive_visionfive2
+    export OPENSBI=${TMPFS}/../opensbi-tmp/build/platform/generic/firmware/fw_dynamic.bin
     ;;
 esac
 

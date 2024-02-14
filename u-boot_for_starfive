@@ -13,7 +13,7 @@ Where:
   -d    compile firmware in debug mode (when allowed)
   -h    this help page
 
-Currently supported boards are: beaglev/starlight, visionfive and visionfive2
+Currently supported boards are: beaglev/starlight, visionfive and visionfive2/visionfive2-sdk
 EOF
   exit 0
 }
@@ -24,10 +24,31 @@ function error() {
   exit 1
 }
 
+# Check binary function
+function checkBin() {
+  typeset -r BIN=$1
+
+  which ${BIN} >/dev/null 2>&1 \
+    || error "${BIN} not found!"
+}
+
+# Copy/Check function
+function copy() {
+  typeset -r FILE=$1
+  typeset -r DEST=$2
+
+  cp ${FILE} ${DEST} >/dev/null 2>&1 \
+    || error "Error while copying file ${FILE} to ${DEST}!"
+}
+
 # Variable(s)
 typeset -r SH_FILE=${0##*/}
-typeset -r U_BOOT_TMP=/dev/shm/u-boot-tmp
-typeset BOARD COPY DEBUG U_BOOT_BOARD U_BOOT_DIR FSZ
+typeset -r TMPFS=/dev/shm
+typeset -r U_BOOT_TMP=${TMPFS}/u-boot-tmp
+typeset -r OPENSBI_TMP=${TMPFS}/opensbi-tmp
+typeset -r U_BOOT_FIT=~/git/github/starfive/Tools/uboot_its/visionfive2-uboot-fit-image.its
+typeset FW_FILE=${OPENSBI_TMP}/build/platform/generic/firmware/fw_payload.bin
+typeset BOARD COPY DEBUG U_BOOT_BOARD U_BOOT_DIR SPL_FILE FW_FILE
 
 # Get options
 while getopts "b:cdh" ARG; do
@@ -59,24 +80,104 @@ case ${BOARD} in
     U_BOOT_BOARD=starfive_jh7100_visionfive_smode
     OPENSBI_DIR=~/git/github/starfive/opensbi
     ;;
-  visionfive2)
+  visionfive2-sdk)
     U_BOOT_DIR=~/git/github/starfive/starfive-tech_u-boot:JH7110_VisionFive2_devel
     U_BOOT_BOARD=starfive_visionfive2
     OPENSBI_DIR=~/git/github/starfive/starfive-tech_opensbi:JH7110_VisionFive2_devel
+    SPL_FILE=${U_BOOT_TMP}/spl/u-boot-spl.bin
+    ;;
+  visionfive2)
+    U_BOOT_DIR=~/git/github/u-boot
+    U_BOOT_BOARD=visionfive2
+    OPENSBI_DIR=~/git/github/starfive/opensbi
+    SPL_FILE=${U_BOOT_TMP}/spl/u-boot-spl.bin
     ;;
 esac
 
-# Compile DDRInit and SecondBoot if needed
+# Compilation order can differ depending on the board and the software used
 case ${BOARD} in
   beaglev|starlight|visionfive)
+    # Compile DDRInit, SecondBoot, U-Boot and OpenSBI
     compile_riscv_ddr_init ${COPY} \
-      && compile_riscv_second_boot ${COPY}
+      && compile_riscv_second_boot ${COPY} \
+      && compile_mainline_u-boot -a riscv64 -b ${U_BOOT_BOARD} -s ${U_BOOT_DIR} \
+      && compile_mainline_opensbi ${DEBUG} ${COPY} -b ${BOARD} -s ${OPENSBI_DIR}
+    ;;
+  visionfive2-sdk)
+    # Compile U-Boot and OpenSBI
+    compile_mainline_u-boot -a riscv64 -b ${U_BOOT_BOARD} -s ${U_BOOT_DIR} \
+      && compile_mainline_opensbi ${DEBUG} ${COPY} -b ${BOARD} -s ${OPENSBI_DIR}
+    ;;
+  visionfive2)
+    # Compile OpenSBI and U-Boot
+    compile_mainline_opensbi ${DEBUG} ${COPY} -b ${BOARD} -s ${OPENSBI_DIR} \
+      && compile_mainline_u-boot -a riscv64 -b ${U_BOOT_BOARD} -s ${U_BOOT_DIR}
     ;;
 esac
 
-# Compile U-Boot and OpenSBI
-compile_mainline_u-boot -a riscv64 -b ${U_BOOT_BOARD} -s ${U_BOOT_DIR} \
-  && compile_mainline_opensbi ${DEBUG} ${COPY} -b ${BOARD} -s ${OPENSBI_DIR}
+# Exit if an error occured!
+(( $? )) && exit 1
+
+# Go to OpenSBI directory
+cd ${OPENSBI_TMPFS}
+
+# Do specific post stuff depending on the board
+case ${BOARD} in
+  beaglev|starlight|visionfive)
+    # fsz.sh is needed for these boards
+    checkBin fsz.sh
+
+    # Fix firmware file
+    fsz.sh ${FW_FILE} || error "Failed to fix ${FW_FILE}!"
+    FW_FILE=${FW_FILE}.out
+    ;;
+  visionfive2-sdk)
+    checkBin spl_tool
+
+    # Create SPL file
+    spl_tool -c -f ${SPL_FILE}
+    SPL_FILE=${SPL_FILE}.normal.out
+
+    # Copy OpenSBI firmware/file locally
+    copy ${FW_FILE} ${PWD}
+    copy ${U_BOOT_FIT} ${PWD}
+
+    # Generate new payload file
+    FW_FILE=${BOARD}_fw_payload.img
+    ${U_BOOT_TMP}/tools/mkimage \
+      -A riscv                  \
+      -f ${U_BOOT_FIT##*/}      \
+      -T firmware               \
+      -O u-boot                 \
+      ${FW_FILE} || error "Failed to generate new ${FW_FILE}!"
+    ;;
+  visionfive2)
+    # Get U-Boot version
+    eval $(sed -n 's/^VERSION[[:space:]]*=[[:space:]]\(.*\)/UBOOT_VERSION=\1/p' ${U_BOOT_TMP}/Makefile)
+
+    # Newer version of U-Boot already does this trick
+    if (( UBOOT_VERSION < 2024 )); then
+      checkBin spl_tool
+
+      # Create SPL file
+      spl_tool -c -f ${SPL_FILE}
+    fi
+
+    # U-Boot FW files
+    SPL_FILE=${SPL_FILE}.normal.out
+    FW_FILE=${U_BOOT_TMP}/u-boot.itb
+    ;;
+esac
+
+# Copy firmware file(s) locally if asked
+if [[ -n "${COPY}" ]]; then
+  for FILE in ${SPL_FILE} ${FW_FILE}; do
+    copy ${FILE} ${OLDPWD}
+  done
+fi
+
+# We need to go back into original directory
+cd ${OLDPWD}
 
 # Clean exit
 exit $?

@@ -1,0 +1,58 @@
+#!/bin/sh
+
+# Variable(s)
+typeset DEV=$1
+typeset -l DEV_LABEL
+typeset BBL_DEV EXTVOOT_DEV
+
+# DEV should be specified
+if [[ -z "${DEV}" ]]; then
+  echo "Device is missing!" >&2
+  exit 1
+fi
+
+# Sudo is needed here!
+if ! sudo id -u >/dev/null 2>&1; then
+  echo "root permissions are needed! Please configure sudo!" >&2
+  exit 1
+fi
+
+# GPT should be configured
+DEV_LABEL=$(sudo fdisk -l ${DEV} 2>/dev/null \
+            | awk '/Disklabel type:/ { print $NF }')
+if [[ ${DEV_LABEL} != "gpt" ]]; then
+  echo "GPT disklabel should be configured on ${DEV}!" >&2
+  exit 1
+fi
+
+# Automatically get the partition numbers
+BBL_DEV=$(sudo fdisk -l ${DEV} 2>/dev/null \
+          | awk '/HiFive BBL/ { print $1 }')
+EXTBOOT_DEV=$(sudo fdisk -l ${DEV} 2>/dev/null \
+              | awk '/Linux extended boot/ { print $1 }')
+
+# Abort if there is no BBL/EXTBOOT device
+if [[ -z "${BBL_DEV}" || -z "${EXTBOOT_DEV}" ]]; then
+  echo "BBL and/or EXTBOOT partitions are not correctly configured!" >&2
+  exit 1
+fi
+
+# Flash firmwares
+echo -e "Flashing VisionFive2 SPL firmware on ${DEV}...\t\c"
+dd if=u-boot-spl.bin.normal.out \
+   of=${BBL_DEV} \
+   conv=fsync \
+   iflag=fullblock,sync \
+   oflag=direct >/dev/null 2>&1 && sync
+(( $? == 0 )) && echo "OK!" || echo "ERROR!"
+
+echo -e "Flashing VisionFive2 U-Boot firmware on ${DEV}...\t\c"
+dd if=u-boot.itb \
+   of=${EXTBOOT_DEV} \
+   conv=fsync \
+   iflag=fullblock,sync \
+   oflag=direct >/dev/null 2>&1 && sync
+(( $? == 0 )) && echo "OK!" || echo "ERROR!"
+
+# Clean exit
+exit $?
