@@ -3,7 +3,7 @@
 # Variable(s)
 typeset DEV=$1
 typeset -l DEV_LABEL
-typeset BBL_DEV EXTVOOT_DEV
+typeset BBL_DEV FSBL_DEV
 
 # DEV should be specified
 if [[ -z "${DEV}" ]]; then
@@ -28,12 +28,12 @@ fi
 # Automatically get the partition numbers
 BBL_DEV=$(sudo fdisk -l ${DEV} 2>/dev/null \
           | awk '/HiFive BBL/ { print $1 }')
-EXTBOOT_DEV=$(sudo fdisk -l ${DEV} 2>/dev/null \
-              | awk '/Linux extended boot/ { print $1 }')
+FSBL_DEV=$(sudo fdisk -l ${DEV} 2>/dev/null \
+	| awk '/(HiFive FSBL|Linux extended boot)/ { print $1 }')
 
 # Abort if there is no BBL/EXTBOOT device
-if [[ -z "${BBL_DEV}" || -z "${EXTBOOT_DEV}" ]]; then
-  echo "BBL and/or EXTBOOT partitions are not correctly configured!" >&2
+if [[ -z "${BBL_DEV}" || -z "${FSBL_DEV}" ]]; then
+  echo "BBL and/or FSBL partitions are not correctly configured!" >&2
   exit 1
 fi
 
@@ -48,7 +48,7 @@ dd if=u-boot-spl.bin.normal.out \
 
 echo -e "Flashing VisionFive2 U-Boot firmware on ${DEV}...\t\c"
 dd if=u-boot.itb \
-   of=${EXTBOOT_DEV} \
+   of=${FSBL_DEV} \
    conv=fsync \
    iflag=fullblock,sync \
    oflag=direct >/dev/null 2>&1 && sync

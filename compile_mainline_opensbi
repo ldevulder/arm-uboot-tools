@@ -69,10 +69,10 @@ shift $((OPTIND-1))
 # Define specific options if needed
 case ${BOARD} in
   beaglev|starlight|visionfive|visionfive2-sdk)
-    OPTS="FW_PAYLOAD_PATH=${PAYLOAD_FILE} FW_FDT_PATH=${FDT_FILE}"
+    OPTS="FW_OPTIONS=0 FW_PAYLOAD_PATH=${PAYLOAD_FILE} FW_FDT_PATH=${FDT_FILE}"
     ;;
   visionfive2)
-    #OPTS="FW_TEXT_START=0x40000000"
+    OPTS="FW_OPTIONS=0 FW_TEXT_START=0x40000000"
     unset COPY
     ;;
 esac
